@@ -448,9 +448,10 @@ t "W5 a LAN witness of another run does not count for the V5 lines" 0 "^V5: no v
 rm -f "$W/b/logs/lan-witness-7.txt"
 # the newest snapshot written during the shutdown (no address in its `ip addr`), the self-test in it holding the address (run 6's nit)
 payload "$W/p-late.base" "$RUN" "" "self wdt"
-awk '{ print } /^kernel: 6.12.112  board: wd,mycloud-ex4/ { print "-- network"; print "eth0 mac 00:90:a9:00:00:50 carrier 0 speed -1"; print "    inet 127.0.0.1/8 scope host lo"; print "    inet 192.0.2.101/24 brd 192.0.2.255 scope global br-lan"; print "-- usb" }' "$W/p-late.base" > "$W/p-late.txt"
+awk '/^processes:/ { sub(/ 901:\/usr\/sbin\/dropbear/, "") } { print } /^kernel: 6.12.112  board: wd,mycloud-ex4/ { print "-- network"; print "eth0 mac 00:90:a9:00:00:50 carrier 0 speed -1"; print "    inet 127.0.0.1/8 scope host lo"; print "    inet 192.0.2.101/24 brd 192.0.2.255 scope global br-lan"; print "-- usb" }' "$W/p-late.base" > "$W/p-late.txt"
 dlog sda3 "$W/p-late.txt" 00112233445566778899aabbccddeeff 1 410 1330
 t "W6 a last snapshot without an address (written during the shutdown), the self-test in it with one -> how far: network, and the line says where the address is from" 0 "VERDICT: MODERN KERNEL BOOTED (how far: network): .* the trial held 192.0.2.101/24 on br-lan (as the self-test in this log recorded it about 45 s after boot; the newest snapshot itself holds no address" V
+t "W6 ... and its ssh field does not say a flat no: a snapshot written while shutting down proves nothing about ssh (run 6 and 8 nit)" 0 "ssh server running: not in the newest snapshot (written while shutting down, so its no proves nothing: the LAN witness below decides)" V
 dlog sda3 "$W/p-nonet.txt" 00112233445566778899aabbccddeeff 1 411 1331
 t "W6 no address in the snapshot and no self-test in the log -> still how far: userspace" 0 "VERDICT: MODERN KERNEL BOOTED (how far: userspace)" V
 python3 -I -c 'import sys; open(sys.argv[1],"wb").write(bytes(4<<20))' "$W/dev/sda3"
