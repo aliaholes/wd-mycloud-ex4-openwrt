@@ -1,0 +1,239 @@
+{
+ "_about": "Record of what WD's own stock binaries (firmware 2.12.127) did when run under qemu-arm against a pty / fake micro (tests/fan-emu/). Bytes on the wire and the values they stored; no WD code.",
+ "libs": {
+  "librs232.so": "<rootfs>/usr/local/modules/usrlib/librs232.so",
+  "libshare.so": "<rootfs>/usr/local/modules/usrlib/libshare.so",
+  "libxml2.so.2": "<rootfs>/usr/local/modules/lib/libxml2.so.2.7.4",
+  "libdm.so": "<rootfs>/usr/local/modules/usrlib/libdm.so",
+  "libalpha_common.so": "<rootfs>/usr/local/modules/usrlib/libalpha_common.so"
+ },
+ "runs": [
+  {
+   "cmd": "MCUVer",
+   "t": 2.5039,
+   "rc": 0,
+   "stdout": "",
+   "wire": [
+    [
+     2.528,
+     "box->mcu",
+     "fa"
+    ],
+    [
+     2.5283,
+     "box->mcu",
+     "0305"
+    ],
+    [
+     2.5283,
+     "box->mcu",
+     "0000"
+    ],
+    [
+     2.5286,
+     "box->mcu",
+     "00fb"
+    ],
+    [
+     2.5286,
+     "mcu->box",
+     "fa3000000000fb"
+    ]
+   ]
+  },
+  {
+   "reply": "fa0100030715301202171126fb",
+   "xml": [
+    "669067 SET /runtime/rtc = 26/11/17 Mon 12:30:15"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2100000000fb",
+   "xml": [
+    "669067 SET /runtime/button = Button:PWR"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2100000100fb",
+   "xml": [
+    "669067 SET /runtime/button = Button:PWR"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2200000000fb",
+   "xml": [
+    "669067 SET /runtime/button = Button:RST"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa5200000000fb",
+   "xml": [
+    "669067 SET /runtime/button = Button:RST2"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa5700000000fb",
+   "xml": [
+    "669067 SET /runtime/button = Button:PWR2"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2600000000fb",
+   "xml": [
+    "669067 SET /runtime/usbBackup = Button:UsbBackupPush"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2300000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:PWRPush"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2400000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:RSTPush"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2500000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:FUNCPush"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2700000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:FUNC2Push"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2a00000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:PWRRelease"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2b00000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:RSTRelease"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2c00000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:FUNCRelease"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2d00000000fb",
+   "xml": [
+    "669067 SET /runtime/MFG = Button:FUNC2Release"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa4000000100fb",
+   "xml": [
+    "669067 SET /runtime/pwrcorelost = 0"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa4100000100fb",
+   "xml": [
+    "669067 SET /runtime/aprstat = 0"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa4200000100fb",
+   "xml": [
+    "669067 SET /runtime/wolstat = 0"
+   ],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa2000000000fb",
+   "xml": [],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa0309000001fb",
+   "xml": [],
+   "shell": [],
+   "wire_after": []
+  },
+  {
+   "reply": "fa030500010102030405060708fb",
+   "xml": [],
+   "shell": [],
+   "wire_after": []
+  }
+ ],
+ "termios_before": {
+  "iflag": 1280,
+  "oflag": 5,
+  "cflag": 191,
+  "lflag": 35387,
+  "ispeed": "B38400",
+  "ospeed": "B38400"
+ },
+ "termios_after": {
+  "iflag": 4,
+  "oflag": 0,
+  "cflag": 2238,
+  "lflag": 0,
+  "ispeed": "B19200",
+  "ospeed": "B19200",
+  "CSIZE_is_CS8": true,
+  "PARENB": false,
+  "CSTOPB": false,
+  "CRTSCTS": false,
+  "IXON": false,
+  "IXOFF": false,
+  "ICANON": false,
+  "ECHO": false,
+  "OPOST": false,
+  "VMIN": 0,
+  "VTIME": 0
+ },
+ "msg_info": "5 669061",
+ "up_send_daemon_stdout": "",
+ "up_read_daemon_stdout": "sh: 1: /usr/sbin/schedule_poweron: not found\n",
+ "shell.log": "1794905186.687625872 rm -rf /tmp/msg_info.txt\n1794905189.498923886 xmldbc -d /runtime/mcu/ack\n",
+ "xml/LOG": "669067 SET /runtime/mcu/ack = ack\n669061 GET /runtime/mcu/ack = ack\n669067 SET /runtime/rtc = 26/11/17 Mon 12:30:15\n669067 SET /runtime/button = Button:PWR\n669067 SET /runtime/button = Button:PWR\n669067 SET /runtime/button = Button:RST\n669067 SET /runtime/button = Button:RST2\n669067 SET /runtime/button = Button:PWR2\n669067 SET /runtime/usbBackup = Button:UsbBackupPush\n669067 SET /runtime/MFG = Button:PWRPush\n669067 SET /runtime/MFG = Button:RSTPush\n669067 SET /runtime/MFG = Button:FUNCPush\n669067 SET /runtime/MFG = Button:FUNC2Push\n669067 SET /runtime/MFG = Button:PWRRelease\n669067 SET /runtime/MFG = Button:RSTRelease\n669067 SET /runtime/MFG = Button:FUNCRelease\n669067 SET /runtime/MFG = Button:FUNC2Release\n669067 SET /runtime/pwrcorelost = 0\n669067 SET /runtime/aprstat = 0\n669067 SET /runtime/wolstat = 0\n"
+}
