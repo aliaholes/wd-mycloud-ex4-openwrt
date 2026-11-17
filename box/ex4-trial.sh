@@ -1,5 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
+# ex4-trial.sh (v7 = v6 + THE SECURITY FIX) : runs ON the WD My Cloud EX4, under its STOCK firmware (busybox sh).
+# v7 (Nov 17 2026): nothing changes in the launch. The overlay (build/mkoverlay.py, item 12) now locks root's empty
+# password field ('*': no password matches, the ssh key still works) and keeps the web server on 127.0.0.1:80 with no
+# /ubus door; up to v6 the web server listened on the LAN and root had no password. `verdict` gains one SECURITY line
+# from the self-test's "-- security" block (root's password field as a state, uhttpd's settings, the ports open to
+# the LAN). Below: v6's own header.
 # ex4-trial.sh (v6 = v5 + THE LINK FLAP AND THE FLASH LAYOUT) : runs ON the WD My Cloud EX4, under its STOCK firmware (busybox sh).
 # v6 (run 8): same module, same logger, same launch as v5. The DEVICE TREE inside kernel.bin changed in two places:
 #   flash   WD's last three flash partitions are not in address order ("reserve", mtd6, sits BELOW "rescue firmware",
@@ -338,6 +344,7 @@ check)
 	say "v5 MACs: stock now: bond0 $(cat "$NICDIR/bond0/address" 2>/dev/null), egiga0 $(cat "$NICDIR/egiga0/address" 2>/dev/null), egiga1 $(cat "$NICDIR/egiga1/address" 2>/dev/null). The trial reads the unit's own two addresses from flash (read-only): eth0 = the first, eth1 = the second, br-lan (the one that asks for the lease) = the first."
 	say "v5 USB 3 / clock / panel: the overlay carries xhci-hcd + xhci-pci from the official OpenWrt image of the same release (KMODS.txt); ex4fan reads the front-panel micro's clock (it never sets it), sends WD's DeviceReady once, and logs the micro's button events without acting on them."
 	say "v6 flash / link: the device tree in kernel.bin carries WD's own flash layout (the last three partitions are not in address order; run 7 read the wrong place for the MAC addresses) and hands both Ethernet PHYs to the kernel's generic PHY driver (runs 5 to 7: the cabled port's link dropped once a second under the Marvell driver). Every flash partition is still read-only."
+	say "v7 security: the trial's web server answers on 127.0.0.1 only (no /ubus door, no HTTPS listener) and root's empty password field is locked ('*'): only your ssh key logs in. Bundles built before v7 left ports 80/443 open to the LAN with no root password: rebuild them."
 	say "CHECK ONLY: nothing was loaded, nothing was changed."
 	;;
 load-dry)
@@ -532,7 +539,7 @@ verdict)
 			fi
 		fi
 	done < "$L/postjump-state-$STAMP.txt"
-	DINET=; DTOK=unknown; DRET=0; DSELF=0; DSSH=0; DSTATIC=0; DUPT=; DWDT=0
+	DINET=; DTOK=unknown; DRET=0; DSELF=0; DSSH=0; DSTATIC=0; DUPT=; DWDT=0; DLATE=0
 	if [ $FRESH = 1 ]; then
 		DUPT=$(echo "$DSTATE" | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^uptime=/) { sub(/^uptime=/, "", $i); print $i } }')
 		DINET=$(awk '/^-- \$ ip addr/ { f = 1; next } /^-- / { f = 0 } f && $1 == "inet" && $2 !~ /^127\./ { printf "%s%s on %s", s, $2, $NF; s = ", " }' "$DL")
@@ -543,14 +550,14 @@ verdict)
 		grep -q "^processes:.*dropbear" "$DL" && DSSH=1
 		if [ -z "$DINET" ]; then      # v5 (run 6 showed it): the newest snapshot is often written while the trial is already shutting down for its return (no address, no ssh server left in it). The self-test inside the same log was taken about 45 s after boot.
 			DINETSELF=$(awk '/^-- self-test \(/ { st = 1; next } /^-- dmesg \(/ { st = 0 } st && /^-- / { n = ($2 == "network") } st && n && $1 == "inet" && $2 !~ /^127\./ { printf "%s%s on %s", s, $2, $NF; s = ", " }' "$DL")
-			[ -n "$DINETSELF" ] && DINET="$DINETSELF (as the self-test in this log recorded it about 45 s after boot; the newest snapshot itself holds no address: it was written while the trial was shutting down)"
+			[ -n "$DINETSELF" ] && { DINET="$DINETSELF (as the self-test in this log recorded it about 45 s after boot; the newest snapshot itself holds no address: it was written while the trial was shutting down)"; DLATE=1; }
 		fi
 		DSTATIC=$(echo "$DINET" | awk -v o="$OWRT_DEFAULT/" '{ n = split($0, a, ", "); for (i = 1; i <= n; i++) if (index(a[i], o) == 1) f = 1 } END { print f + 0 }')
 		vd "disk log: newest snapshot on $DPART, written at trial uptime $DUPT s; saved in $DL"
 		vd "disk log: $(awk 'NR == 1 { print; exit }' "$DL")"
 		vd "disk log: $(first "version: " "$DL")"
 		vd "disk log: $(first "cmdline: " "$DL")"
-		vd "disk log: run id in it: $DTOK (this = ex4boot_run=$MR) · LAN addresses: ${DINET:-none} · ssh server running: $(if [ $DSSH = 1 ]; then echo yes; else echo no; fi) · self-test written: $(if [ $DSELF = 1 ]; then echo yes; else echo no; fi) · auto-return note: $(if [ $DRET = 1 ]; then echo yes; else echo no; fi)"
+		vd "disk log: run id in it: $DTOK (this = ex4boot_run=$MR) · LAN addresses: ${DINET:-none} · ssh server running: $(if [ $DSSH = 1 ]; then echo yes; elif [ $DLATE = 1 ]; then echo "not in the newest snapshot (written while shutting down, so its no proves nothing: the LAN witness below decides)"; else echo no; fi) · self-test written: $(if [ $DSELF = 1 ]; then echo yes; else echo no; fi) · auto-return note: $(if [ $DRET = 1 ]; then echo yes; else echo no; fi)"
 		[ $DSTATIC = 1 ] && vd "disk log: WARNING: the trial held $OWRT_DEFAULT (OpenWrt's router default): the overlay's network setup did not apply"
 		vd "disk log: its trail (the daemon's milestones):"
 		section "-- trail" "$DL" 40 > "$L/disklogsum-$STAMP.txt"; section "-- notes" "$DL" 20 >> "$L/disklogsum-$STAMP.txt"; section "-- self-test" "$DL" 12 >> "$L/disklogsum-$STAMP.txt"
@@ -679,6 +686,20 @@ verdict)
 		vd "V6 LINK: eth1: $(v6v K1) · eth0: $(v6v K0)"
 	elif [ -n "$V5SRC" ]; then
 		vd "V6: the self-test on record has no v6 blocks (a bundle older than v6): flash layout, PHY driver and the 10 s link count cannot be told from here"
+	fi
+	# ---- 5e. v7: the security block of the same self-test ----
+	if [ -n "$V5SRC" ] && grep -q "^-- security" "$V5SRC"; then
+		awk '$1 == "security" && $2 == "root_password_field" { pw = $3 }
+			$1 == "security" && $2 == "uhttpd" { u = $0; sub(/^security uhttpd /, "", u) }
+			$1 == "security" && $2 == "tcp_lan_ports" { t = $0; sub(/^security tcp_lan_ports /, "", t) }
+			$1 == "security" && $2 == "udp_lan_ports" { d = $0; sub(/^security udp_lan_ports /, "", d) }
+			END { tt = " " t " "
+				print "PW " (pw == "" ? "?" : pw); print "UH " (u == "" ? "?" : u); print "TCP " (t == "" ? "?" : t); print "UDP " (d == "" ? "?" : d)
+				print "WEB " ((t != "" && !index(tt, " 80 ") && !index(tt, " 443 ")) ? "yes" : "NO") }' "$V5SRC" > "$L/sec-$STAMP.txt"
+		secv() { awk -v k="$1" '$1 == k { sub(/^[A-Z0-9]+ ?/, ""); print; exit }' "$L/sec-$STAMP.txt"; }
+		vd "SECURITY: root's password field: $(secv PW) · uhttpd: $(secv UH) · TCP ports open on a LAN address: $(secv TCP) · UDP: $(secv UDP) · web ports 80 / 443 closed to the LAN: $(secv WEB)"
+	elif [ -n "$V5SRC" ]; then
+		vd "SECURITY: the self-test on record has no security block (a bundle older than v7: its web server listened on the LAN and root had no password)"
 	fi
 	# ---- 6. stock's start ledger + the clock ----
 	EXTRA=unknown
