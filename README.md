@@ -25,6 +25,9 @@
 > unclean return can make the RAID resync or the stock system check its file system for minutes. The trial also
 > **writes one 2 MiB log into an unused disk partition** (see [SAFETY.md](SAFETY.md), "The one disk write").
 >
+> **Security fix, Nov 17 2026:** bundles built before that date left the trial's web server open to the LAN with
+> no root password. If you built one, rebuild before running it again. Details: [SAFETY.md](SAFETY.md), "SECURITY NOTE".
+>
 > **Back up your data first.** Assume every disk in the NAS could be lost, and do not run this on the only copy
 > of anything.
 >
