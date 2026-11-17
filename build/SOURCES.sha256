@@ -1,0 +1,6 @@
+# What build.sh needs, where it comes from, and the sha256 each file must have. fetch.sh downloads and checks them.
+# sha256  filename  URL          (a URL of "-" = no link we could verify: you put that file into the download folder yourself)
+d0181ea2cf671373c7445360ef6469bed120944ac194bd8f8dba7d3a72321379  openwrt-25.12.6-kirkwood-generic-iom_ix4-200d-initramfs-uImage  https://downloads.openwrt.org/releases/25.12.6/targets/kirkwood/generic/openwrt-25.12.6-kirkwood-generic-iom_ix4-200d-initramfs-uImage
+be55e4396ab808161c2af285385468ac059f3c46c12c358c81297fd608c6b876  openwrt-25.12.6-kirkwood-generic-zyxel_nsa325-initramfs-uImage  https://downloads.openwrt.org/releases/25.12.6/targets/kirkwood/generic/openwrt-25.12.6-kirkwood-generic-zyxel_nsa325-initramfs-uImage
+164dc9d1f6c93c61a15e1f071c48379b467f2b17c469cce7223471968208ed03  linux-6.12.112.tar.xz  https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.112.tar.xz
+59bdd9f5fd901247e2d282bc43a68df122c53e7df628a48ec04f0b91a0818f41  WDMyCloud_EX4_GPL_v2.12.127_20181219.tar.gz  -
