@@ -7,8 +7,8 @@ Why it exists (each line is a thing the stock OpenWrt image would do wrong on a 
   1. An unknown board falls into OpenWrt's default network case: a STATIC address (OpenWrt's well-known factory default, the .1.1 one) with a DHCP SERVER. On a home
      LAN in the same range that fights the real router. The overlay's /etc/board.d/02_network makes "wd,mycloud-ex4"
      a DHCP CLIENT on eth0+eth1 (the same line OpenWrt uses for the Iomega ix4-200d) - built from the image's own file.
-  2. Root has no password in an initramfs image. With --pubkey the overlay installs the key and turns password logins
-     off; without it the trial is reachable by anyone on the LAN (said loudly at build time).
+  2. Root has no password in an initramfs image. The overlay installs the --pubkey key (REQUIRED since v7) and turns
+     ssh password logins off. v7 (Nov 17 2026) closes the rest of that door, see 12.
   3. A trial nobody can reach must end by itself: /etc/init.d/ex4-trial reboots after --return-min minutes unless
      /tmp/ex4-stay exists. A reboot goes through U-Boot = the untouched stock system.
   4. A self-test report (bays, NICs, USB 3, temperature, NAND read-only, uart1) lands in /tmp/ex4-selftest.txt and on
@@ -51,9 +51,18 @@ Why it exists (each line is a thing the stock OpenWrt image would do wrong on a 
      sits (run 7 read the wrong place: the device tree had WD's last three partitions in address order, WD has
      them in another), which driver holds each PHY and what the chips themselves answer (id, register page), and
      the carrier-change counters of both ports taken twice, 10 s apart (the link flap of runs 5 to 7, as a rate).
+ 12. (v7, ALWAYS: the security fix of Nov 17 2026) up to v6 only ssh was key-only. The image's web server (uhttpd, with
+     LuCI and the /ubus door to rpcd) listened on every address, ports 80 and 443, and root's password field was
+     EMPTY, which rpcd's login (and so LuCI's) takes as "no password needed": anyone on the LAN could become root
+     over HTTP for the trial's 20 minutes. Now uci-defaults (S10, before rpcd at S12, dropbear at S19 and uhttpd at
+     S50) (a) turns root's EMPTY password field into '*' (it changes the line only if it starts exactly "root::";
+     '*' matches no password, and dropbear still lets the key in, where '!' would lock the key out as well) and (b)
+     gives uhttpd one listener, 127.0.0.1:80, no HTTPS listener and no /ubus prefix. The self-test gains a
+     "-- security" block: root's password field as a state (never the hash), uhttpd's settings, and every TCP / UDP
+     port bound to a non-loopback address (read from /proc/net). --pubkey is required: no key, no overlay.
 
   python3 -I mkoverlay.py --network-file <02_network from the SAME OpenWrt image> --out overlay.cpio
-                          [--pubkey id.pub] [--return-min 20]
+                          --pubkey id.pub [--return-min 20]
                           [--ex4log <static ARM ex4log> --log-min-sectors N --log-max-sectors N --tag bundle-v1
                            --log-skip-port N]
                           [--preinit-conf <00_preinit.conf from the SAME OpenWrt image>]
@@ -65,6 +74,7 @@ Without --ex4fan the output is byte-identical to what this file built before v4 
 Without --ex4mac and --kmods the output is byte-identical to what this file built before v5 (with bundle-v4's ex4fan:
 bundle-v4's overlay).
 Without --ex4phy the output is byte-identical to what this file built before v6.
+(Those four byte-identity notes are history: since v7 every overlay carries the security fix of item 12.)
 Never overwrites. Born Nov 16 2026 (EX4 tooling)."""
 import argparse
 import os
@@ -94,6 +104,29 @@ echo "-- thermal"; for z in /sys/class/thermal/thermal_zone*/temp /sys/class/hwm
 echo "-- serial"; cat /proc/tty/driver/serial 2>/dev/null
 echo "-- i2c"; ls /sys/bus/i2c/devices 2>/dev/null
 echo "-- gpio"; cat /sys/kernel/debug/gpio 2>/dev/null | head -80
+echo "-- security (v7: the web server answers on 127.0.0.1 only; root logs in with the ssh key, never with a password)"
+if grep -q '^root:' /etc/shadow 2>/dev/null; then F=$(sed -n 's/^root:\([^:]*\):.*/\1/p' /etc/shadow)
+case "$F" in
+'') echo "security root_password_field EMPTY: OPEN (any password logs in as root, over the web door too)";;
+'*') echo "security root_password_field locked_star (no password matches; the ssh key still works)";;
+'!'*) echo "security root_password_field locked_bang (dropbear refuses root even with the key)";;
+*) echo "security root_password_field set (a password hash; not printed)";;
+esac; else echo "security root_password_field unknown (no root line in /etc/shadow)"; fi
+UH=$(uci -q get uhttpd.main.listen_http); US=$(uci -q get uhttpd.main.listen_https); UU=$(uci -q get uhttpd.main.ubus_prefix)
+echo "security uhttpd listen_http $(echo ${UH:-none} | tr ' ' ',') listen_https $(echo ${US:-none} | tr ' ' ',') ubus_prefix ${UU:-none}"
+NFL=; for f in /proc/net/tcp /proc/net/tcp6 /proc/net/udp /proc/net/udp6; do [ -r $f ] && NFL="$NFL $f"; done
+awk 'function hx(s,   i, n) { n = 0; for (i = 1; i <= length(s); i++) n = n * 16 + index("0123456789ABCDEF", toupper(substr(s, i, 1))) - 1; return n }
+	FNR == 1 { f = FILENAME; sub(/^.*\//, "", f); next }
+	{ split($2, a, ":"); ad = toupper(a[1]); p = hx(a[2]); pr = substr(f, 1, 3)
+	  if (pr == "tcp" && $4 != "0A") next
+	  if (pr == "udp" && $4 != "07") next
+	  if (length(ad) == 8) { lo = (substr(ad, 7, 2) == "7F"); h = hx(substr(ad, 7, 2)) "." hx(substr(ad, 5, 2)) "." hx(substr(ad, 3, 2)) "." hx(substr(ad, 1, 2)) }
+	  else { lo = (ad == "00000000000000000000000001000000" || (substr(ad, 1, 24) == "0000000000000000FFFF0000" && substr(ad, 31, 2) == "7F"))
+		h = "[" ad "]"; if (ad == "00000000000000000000000000000000") h = "[::]"; if (ad == "00000000000000000000000001000000") h = "[::1]" }
+	  al[pr] = al[pr] " " h ":" p
+	  if (!lo && !((pr ":" p) in sn)) { sn[pr ":" p] = 1; ln[pr] = ln[pr] " " p } }
+	END { print "security tcp_lan_ports" (ln["tcp"] == "" ? " none" : ln["tcp"]); print "security udp_lan_ports" (ln["udp"] == "" ? " none" : ln["udp"])
+	      print "security tcp_listen_all" al["tcp"]; print "security udp_bound_all" al["udp"] }' $NFL
 echo "-- dmesg errors"; dmesg | grep -iE "error|fail|unable|timeout|ecc|bad" | head -40
 P=0; [ "$(ls -d /sys/block/sd* 2>/dev/null | wc -l)" -ge 1 ] && P=$((P+1))
 echo "== bays seen: $(ls -d /sys/block/sd* 2>/dev/null | wc -l) of 4 =="
@@ -271,6 +304,20 @@ boot() {
 
 UCI_DEFAULTS = r'''#!/bin/sh
 # ex4 trial: a NAS on someone's LAN, not a router.
+# v7 SECURITY (Nov 17 2026): nobody on the LAN becomes root without the ssh key. This runs at S10 (/etc/init.d/boot),
+# before rpcd (S12), dropbear (S19) and uhttpd (S50) start.
+# (a) OpenWrt's initramfs ships root's password field EMPTY ("root::"); rpcd's login (the web door, LuCI) takes an
+#     empty field as "no password needed". '*' matches no password at all and dropbear still accepts the key ('!'
+#     would lock the key out too). Only an empty field is changed: a set or locked one is left exactly as it is.
+grep -q '^root::' /etc/shadow && sed -i 's/^root::/root:*:/' /etc/shadow
+SECPW=$(sed -n 's/^root:\([^:]*\):.*/\1/p' /etc/shadow)
+case "$SECPW" in '*') SECPW='locked (*)';; '') SECPW='EMPTY (the fix did not take)';; *) SECPW='not empty, left as it was';; esac
+# (b) the web server: one listener on loopback, no HTTPS listener, no /ubus door (the image's 00_uhttpd_ubus set it).
+uci -q delete uhttpd.main.listen_http
+uci -q add_list uhttpd.main.listen_http='127.0.0.1:80'
+uci -q delete uhttpd.main.listen_https
+uci -q delete uhttpd.main.ubus_prefix
+uci -q commit uhttpd
 uci -q set system.@system[0].hostname='ex4-trial'
 uci -q commit system
 uci -q set dhcp.lan.ignore='1'
@@ -311,7 +358,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--network-file', required=True)
     ap.add_argument('--out', required=True)
-    ap.add_argument('--pubkey')
+    ap.add_argument('--pubkey', help='REQUIRED (v7): the one public key that may log in as root')
     ap.add_argument('--return-min', type=int, default=20)
     ap.add_argument('--ex4log', help='static ARM ex4log binary: adds the black-box logger (v1)')
     ap.add_argument('--log-min-sectors', type=int, default=8192)
@@ -326,6 +373,9 @@ def main():
     a = ap.parse_args()
     if os.path.exists(a.out):
         sys.exit(f"REFUSED: {a.out} exists (never overwrite)")
+    if not a.pubkey:
+        sys.exit("REFUSED: --pubkey is required: without a key nobody could log in, and before v7 an overlay without one "
+                 "let anyone on the LAN in as root (give the .pub of a key made for this: ssh-keygen -t ed25519 -f ~/.ssh/ex4-trial)")
     net = open(a.network_file).read()
     marker = '\tiom,ix4-200d)\n\t\tucidef_set_interface_lan "eth0 eth1" "dhcp"\n'
     if net.count(marker) != 1:
@@ -360,7 +410,7 @@ def main():
             sys.exit("REFUSED: --log-skip-port takes an ATA port number (1..32)")
         largs = f'--min-sectors {a.log_min_sectors} --max-sectors {a.log_max_sectors}' + ''.join(f' --skip-port {x}' for x in a.log_skip_port) + f' --tag {a.tag}'
         n1, n2, n3 = INITD_N1, INITD_N2, INITD_N3
-        n4 = '/usr/sbin/ex4log note "uci-defaults applied (hostname ex4-trial, DHCP server off, ssh settings)"\n'
+        n4 = '/usr/sbin/ex4log note "uci-defaults applied (hostname ex4-trial, DHCP server off, ssh settings; security: root password field $SECPW, web server on 127.0.0.1:80 only, no /ubus)"\n'
         extra += [
             ('usr/sbin/ex4log', elf, 0o100755),
             ('lib/preinit/01_ex4_disklog', PREINIT_HOOK.replace('@LOGGER_ARGS@', largs).encode(), 0o100644),
@@ -375,16 +425,13 @@ def main():
         extra.append(('lib/preinit/00_preinit.conf', conf.encode(), 0o100644))
     for d in dirs:
         files.append((d, b'', 0o040755))
-    if a.pubkey:
-        key = open(a.pubkey).read().strip()
-        if not key.startswith(('ssh-ed25519 ', 'ssh-rsa ', 'ecdsa-')) or '\n' in key or 'PRIVATE' in key:
-            sys.exit("REFUSED: --pubkey is not one public key line")
-        files.append(('etc/dropbear', b'', 0o040700))
-        files.append(('etc/dropbear/authorized_keys', (key + '\n').encode(), 0o100600))
-        keyonly = ("uci -q set dropbear.@dropbear[0].PasswordAuth='off'\n"
-                   "uci -q set dropbear.@dropbear[0].RootPasswordAuth='off'\nuci -q commit dropbear")
-    else:
-        print("WARNING: no --pubkey: the trial system accepts root with NO password from the LAN", file=sys.stderr)
+    key = open(a.pubkey).read().strip()
+    if not key.startswith(('ssh-ed25519 ', 'ssh-rsa ', 'ecdsa-')) or '\n' in key or 'PRIVATE' in key:
+        sys.exit("REFUSED: --pubkey is not one public key line")
+    files.append(('etc/dropbear', b'', 0o040700))
+    files.append(('etc/dropbear/authorized_keys', (key + '\n').encode(), 0o100600))
+    keyonly = ("uci -q set dropbear.@dropbear[0].PasswordAuth='off'\n"
+               "uci -q set dropbear.@dropbear[0].RootPasswordAuth='off'\nuci -q commit dropbear")
     files += [
         ('etc/board.d/02_network', net.encode(), 0o100755),
         ('etc/uci-defaults/99-ex4-trial', UCI_DEFAULTS.replace('@KEYONLY@', keyonly).replace('@MAC@', UCI_MAC if a.ex4mac else '').replace('@N4@', n4).encode(), 0o100755),
@@ -439,7 +486,7 @@ def main():
     out += b'\0' * (-len(out) % 512)
     with open(a.out, 'wb') as f:
         f.write(out)
-    print(f"wrote {a.out}: {len(out)} bytes, {len(files)} entries, key-only ssh: {'yes' if a.pubkey else 'NO'}, auto-return {a.return_min} min, "
+    print(f"wrote {a.out}: {len(out)} bytes, {len(files)} entries, key-only ssh: yes, security (v7): root password field '*' if empty + web server 127.0.0.1:80 only + no /ubus, auto-return {a.return_min} min, "
           f"black box: {('yes, window %d..%d sectors, ports kept off %s, tag %s' % (a.log_min_sectors, a.log_max_sectors, a.log_skip_port or 'none', a.tag)) if a.ex4log else 'NO'}, "
           f"preinit static default address: {'off' if a.preinit_conf else 'ON (stock OpenWrt behaviour)'}"
           + (", fan daemon: yes (preinit hook + rc.d S02)" if a.ex4fan else "")
