@@ -1,0 +1,37 @@
+{
+ "_about": "Record of what WD's own stock binaries (firmware 2.12.127) did when run under qemu-arm against a pty / fake micro (tests/fan-emu/). Bytes on the wire and the values they stored; no WD code.",
+ "bin": "rtc",
+ "args": [
+  "-s"
+ ],
+ "rc": 0,
+ "stdout": "rtc: RTC time = 2026/11/17 Mon 12:30:15\n",
+ "shell": [
+  "up_send_ctl RDateAndTime"
+ ],
+ "xml": [
+  "669463 GET /runtime/rtc = 26/11/17 Mon 12:30:15",
+  "669463 DEL /runtime/rtc"
+ ],
+ "sh": [],
+ "strace": [
+  "669463 mmap2(NULL,4096,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0) = 0x40801000",
+  "669463 mmap2(NULL,8288,PROT_EXEC|PROT_READ,MAP_PRIVATE|MAP_DENYWRITE,3,0) = 0x40802000",
+  "669463 mmap2(0x40803000,8192,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_DENYWRITE|MAP_FIXED,3,0) = 0x40803000",
+  "669463 mmap2(NULL,84327,PROT_READ,MAP_PRIVATE,3,0) = 0x40831000",
+  "669463 mmap2(NULL,1225256,PROT_EXEC|PROT_READ,MAP_PRIVATE|MAP_DENYWRITE,3,0) = 0x40846000",
+  "669463 mmap2(0x4096c000,12288,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_DENYWRITE|MAP_FIXED,3,0x11e) = 0x4096c000",
+  "669463 mmap2(0x4096f000,8744,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,-1,0) = 0x4096f000",
+  "669463 mmap2(NULL,4096,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0) = 0x40805000",
+  "669465 execve(\"/bin/sh\",{\"sh\",\"-c\",\"echo \"****calling rtc -s\" >> /tmp/RtcRetryLog\",NULL}) = 669465",
+  "669467 execve(\"/bin/sh\",{\"sh\",\"-c\",\"echo \"retry rtc 1 time(s) in rtc2sys\" >> /tmp/RtcRetryLog\",NULL}) = 669467",
+  "669469 execve(\"/bin/sh\",{\"sh\",\"-c\",\"up_send_ctl RDateAndTime\",NULL}) = 669469",
+  "669463 open(\"<work>/xml/N^runtime^rtc\",O_RDONLY|O_LARGEFILE) = 3",
+  "669463 open(\"<work>/xml/LOG\",O_WRONLY|O_APPEND|O_CREAT|O_LARGEFILE,0600) = 3",
+  "669463 open(\"<work>/xml/LOG\",O_WRONLY|O_APPEND|O_CREAT|O_LARGEFILE,0600) = 3",
+  "669463 mmap2(NULL,4096,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0) = 0x40806000",
+  "669463 open(\"/usr/share/zoneinfo/UTC0\",O_RDONLY) = -1 errno=2 (No such file or directory)",
+  "669463 settimeofday({tv_sec = 1794918615,tv_usec = 0},NULL) = -1 errno=1 (Operation not permitted)"
+ ],
+ "libs": []
+}
