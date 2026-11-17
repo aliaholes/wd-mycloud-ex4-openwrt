@@ -1,5 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
+# qemu-e2e.sh (v7 = v6 + THE SECURITY CHECKS, Nov 17 2026). MODE normal also forwards three host ports on 127.0.0.1
+# through each of qemu's two user networks to the guest's ports 80, 443 and 22, and about 250 s into the boot (uhttpd
+# starts at S50, the last init script about 160 s in) probes them from OUTSIDE the guest: a JSON-RPC session.login
+# as root on /ubus with an empty and with a random password, a LuCI login with an empty password, a plain HTTP
+# request, a TLS handshake on 443, port 22's banner (the control: the forward reaches the guest at all), and, with
+# EX4_E2E_SSHKEY=<the private half of the key the overlay was built with>, a key login that reads root's password
+# field as a STATE (star / EMPTY / other) plus a password-only attempt (PASS = the server offers publickey only).
+# PASS = every login refused, 80 and 443 closed, port 22 reachable; inside the guest the self-test's "-- security"
+# block says root's field is locked ('*'), uhttpd listens on 127.0.0.1:80 only with no /ubus, and no TCP port but 22
+# (dropbear) and 53 (dnsmasq's DNS) is bound to a non-loopback address. Below: v6's header.
 # qemu-e2e.sh (v5 = qemu-e2e.sh + the run-7 additions) : bundle-v5's overlay inside the trial's real USERSPACE, end
 # to end, on an emulated ARM926 (qemu versatilepb). Off the box. What v5 adds to the machine and to MODE normal:
 #   * a 64 MiB CFI flash whose device tree carries the EX4's partition names; the "rescue firmware" partition starts
@@ -42,6 +52,16 @@ set -eu
 Z=$1; DTB=$2; ROOT=$3; OVL=$4; XLOGSRC=$5; MCU=$6; W=$7; MODE=$8
 case "$MODE" in normal) SECS=${9:-330};; silent) SECS=${9:-120};; rpmzero) SECS=${9:-150};; deadman) SECS=${9:-330};; *) echo "mode?"; exit 64;; esac
 MAC1=00:90:A9:AA:BB:50; MAC2=00:90:A9:AA:BB:51          # the test unit's identity (WD's OUI, made-up tail)
+HF0=; HF1=; FWD=
+if [ "$MODE" = normal ]; then          # v7: six free host ports, three per user network (guest 80, 443, 22)
+	FWD=$(python3 -I -c 'import socket
+ss = [socket.socket() for _ in range(6)]
+for s in ss: s.bind(("127.0.0.1", 0))
+print(" ".join(str(s.getsockname()[1]) for s in ss))')
+	fp() { echo "$FWD" | cut -d' ' -f"$1"; }
+	HF0=",hostfwd=tcp:127.0.0.1:$(fp 1)-:80,hostfwd=tcp:127.0.0.1:$(fp 2)-:443,hostfwd=tcp:127.0.0.1:$(fp 3)-:22"
+	HF1=",hostfwd=tcp:127.0.0.1:$(fp 4)-:80,hostfwd=tcp:127.0.0.1:$(fp 5)-:443,hostfwd=tcp:127.0.0.1:$(fp 6)-:22"
+fi
 [ -e "$W" ] && { echo "REFUSED: $W exists"; exit 1; }
 mkdir -p "$W"; W=$(cd "$W" && pwd)
 gcc -O1 -o "$W/ex4log-native" "$XLOGSRC"
@@ -88,15 +108,98 @@ qemu-system-arm -M versatilepb -cpu arm926 -m 256 -display none -no-reboot \
 	-device ahci,id=ahci0 -drive if=none,id=d0,file="$W/disk.img",format=raw -device ide-hd,drive=d0,bus=ahci0.0 \
 	-chardev null,id=nul0 -device pci-serial,chardev=nul0 \
 	-chardev socket,id=mcu,path="$W/mcu.sock",server=on,wait=off -device pci-serial,chardev=mcu \
-	-nic user,mac=52:54:00:e4:00:01 -netdev user,id=n1 -device e1000,netdev=n1,mac=52:54:00:e4:00:01,romfile= \
+	-nic user,mac=52:54:00:e4:00:01$HF0 -netdev user,id=n1$HF1 -device e1000,netdev=n1,mac=52:54:00:e4:00:01,romfile= \
 	-device qemu-xhci,id=xhci -drive if=none,id=usbd,file="$W/usb.img",format=raw -device usb-storage,bus=xhci.0,drive=usbd \
 	-serial file:"$W/serial.log" -qmp unix:"$W/qmp.sock",server,nowait -pidfile "$W/qemu.pid" -daemonize
 QP=$(cat "$W/qemu.pid")
+secprobe() {	# v7: from OUTSIDE the guest, through qemu's port forwards (host 127.0.0.1:<port> -> guest 10.0.2.15:80 / 443 / 22)
+	python3 -I - "$W/secprobe.txt" "${EX4_E2E_SSHKEY:-}" $FWD <<'PY' || echo "PROBE-ERROR the probe itself failed" >> "$W/secprobe.txt"
+import json, secrets, socket, ssl, subprocess, sys
+out, key, ports = sys.argv[1], sys.argv[2], sys.argv[3:]
+nets = [dict(zip(("http", "https", "ssh"), map(int, ports[i:i + 3]))) for i in range(0, len(ports), 3)]
+log = open(out, "a")
+def say(*a): print(*a, file=log, flush=True)
+def http(port, path, body, ctype):
+    """one POST; returns (status line, headers + body text) or None when nothing answers like HTTP (port closed)"""
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=8)
+        req = ("POST %s HTTP/1.0\r\nHost: 10.0.2.15\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n" % (path, ctype, len(body))).encode() + body
+        s.sendall(req); data = b""
+        while True:
+            c = s.recv(65536)
+            if not c: break
+            data += c
+        s.close()
+    except OSError as e:
+        return None, "no HTTP answer (%s)" % e.__class__.__name__
+    if not data.startswith(b"HTTP/"):
+        return None, "no HTTP answer (%d bytes back)" % len(data)
+    t = data.decode("latin-1"); return t.split("\r\n", 1)[0], t
+def ubus_login(port, pw):
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "call", "params": ["0" * 32, "session", "login", {"username": "root", "password": pw}]}).encode()
+    st, t = http(port, "/ubus", body, "application/json")
+    if st is None: return "refused", t
+    return ("OPEN" if "ubus_rpc_session" in t else "refused"), "%s, %s" % (st, "a session id came back" if "ubus_rpc_session" in t else "no session id")
+def luci_login(port, pw):
+    st, t = http(port, "/cgi-bin/luci/", ("luci_username=root&luci_password=%s" % pw).encode(), "application/x-www-form-urlencoded")
+    if st is None: return "refused", t
+    ok = "sysauth" in t.lower() and " 302 " in st + " "
+    return ("OPEN" if ok else "refused"), "%s, %s" % (st, "a sysauth cookie came back" if ok else "no sysauth cookie")
+def tls(port):
+    try:
+        raw = socket.create_connection(("127.0.0.1", port), timeout=8)
+        ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+        s = ctx.wrap_socket(raw, server_hostname="ex4"); v = s.version(); s.close()
+        return "answers", "TLS handshake completed (%s)" % v
+    except (OSError, ssl.SSLError) as e:
+        return "closed", "no TLS handshake (%s)" % e.__class__.__name__
+def banner(port):
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=8); b = s.recv(200); s.close()
+        return b.split(b"\r\n", 1)[0].decode("latin-1").strip()          # the identification line only
+    except OSError:
+        return ""
+def ssh(port, args, cmd):
+    base = ["ssh", "-p", str(port), "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ConnectTimeout=15",
+            "-o", "BatchMode=yes", "-o", "LogLevel=ERROR"] + args + ["root@127.0.0.1", cmd]
+    try:
+        r = subprocess.run(base, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+        return r.returncode, r.stdout.strip(), r.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return 255, "", "timeout"
+res = {}
+def put(name, val, why):
+    worst = {"OPEN": 3, "answers": 3, "offered": 3, "EMPTY": 3, "other": 2, "works": 2, "yes": 2, "refused": 1, "closed": 1, "star": 1, "not-offered": 1}
+    say("  %-20s %-9s %s" % (name, val, why))
+    if name not in res or worst.get(val, 0) > worst.get(res[name], 0): res[name] = val
+rnd = secrets.token_hex(8)
+for i, n in enumerate(nets):
+    b = banner(n["ssh"]); say("net%d: host ports http %d https %d ssh %d; port 22 banner: %r" % (i, n["http"], n["https"], n["ssh"], b[:60]))
+    put("reach", "yes" if b.startswith("SSH-") else "no", "the guest's ssh server answered through this net's forward" if b.startswith("SSH-") else "nothing from port 22 on this net")
+    for name, (v, why) in (("ubus_login_empty", ubus_login(n["http"], "")), ("ubus_login_random", ubus_login(n["http"], rnd)), ("luci_login_empty", luci_login(n["http"], ""))):
+        put(name, v, why)
+    st, t = http(n["http"], "/", b"", "text/plain"); put("http80", "closed" if st is None else "answers", t if st is None else st)
+    v, why = tls(n["https"]); put("https443", v, why)
+    if key:
+        rc, so, se = ssh(n["ssh"], ["-i", key, "-o", "IdentitiesOnly=yes", "-o", "PasswordAuthentication=no"],
+                         "F=$(sed -n 's/^root:\\([^:]*\\):.*/\\1/p' /etc/shadow); case \"$F\" in '*') echo star;; '') echo EMPTY;; *) echo other;; esac")
+        put("ssh_key", "works" if rc == 0 else "fails", "rc %d %s" % (rc, (so or se)[:120]))
+        if rc == 0: put("shadow_root_field", so.splitlines()[-1] if so else "unknown", "read over the key login (the state only, never the field itself unless it is * or empty)")
+        rc, so, se = ssh(n["ssh"], ["-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password,keyboard-interactive"], "true")
+        offered = "password" in se.split("Permission denied", 1)[-1] or "keyboard-interactive" in se.split("Permission denied", 1)[-1]
+        put("ssh_password", "offered" if offered else "not-offered", "rc %d: %s" % (rc, se[-120:]))
+for k in ("reach", "ubus_login_empty", "ubus_login_random", "luci_login_empty", "http80", "https443", "ssh_key", "shadow_root_field", "ssh_password"):
+    say("RESULT %s %s" % (k, res.get(k, "skipped")))
+PY
+}
 if [ "$MODE" = silent ]; then python3 -I "$MCU" "$W/mcu.sock" "$W/mcu.json" --silent --secs "$SECS" > "$W/mcu.log" 2>&1 &
 else python3 -I "$MCU" "$W/mcu.sock" "$W/mcu.json" --secs "$SECS" --events "40:fa2100000000fb,42:fa2200000000fb,44:fa2600000100fb" > "$W/mcu.log" 2>&1 & fi
-T0=$(date +%s); SELF=0
+T0=$(date +%s); SELF=0; PROBED=0
 while [ $(( $(date +%s) - T0 )) -lt "$SECS" ]; do
 	kill -0 "$QP" 2>/dev/null || { SELF=1; break; }
+	if [ "$MODE" = normal ] && [ $PROBED = 0 ] && [ $(( $(date +%s) - T0 )) -ge "${EX4_E2E_PROBE_AT:-250}" ]; then
+		echo "probe at $(( $(date +%s) - T0 )) s after qemu started" > "$W/secprobe.txt"; secprobe; PROBED=1
+	fi
 	sleep 1
 done
 RAN=$(( $(date +%s) - T0 ))
@@ -195,6 +298,28 @@ normal)
 	has "$W/disklog.txt" "ex4fan: event UsbBackupPush: USB copy button (frame 26 00 00 01 00)" "v5 panel: the USB copy button's frame is named"
 	has "$W/disklog.txt" " ready=acked events=3 clock=set" "v5 panel: the state line ends ready=acked events=3 clock=set"
 	[ $SELF = 0 ] && ok "v5 panel: three button frames, and the guest neither rebooted nor shut down" || no "the guest ended by itself"
+	echo "--- v7 security: from OUTSIDE the guest (qemu forwards host 127.0.0.1 ports to the guest's 80 / 443 / 22 on both user networks)"
+	[ -s "$W/secprobe.txt" ] && sed 's/^/   /' "$W/secprobe.txt" || echo "   (no probe ran: the guest ended before ${EX4_E2E_PROBE_AT:-250} s)"
+	has "$W/secprobe.txt" "^RESULT reach yes" "v7 outside: the forward reaches the guest (port 22's ssh banner answered), so 'closed' below means closed"
+	has "$W/secprobe.txt" "^RESULT ubus_login_empty refused" "v7 outside: POST /ubus session.login as root with an EMPTY password gets no session"
+	has "$W/secprobe.txt" "^RESULT ubus_login_random refused" "v7 outside: POST /ubus session.login as root with a RANDOM password gets no session"
+	has "$W/secprobe.txt" "^RESULT luci_login_empty refused" "v7 outside: a LuCI login as root with an empty password gets no sysauth cookie"
+	has "$W/secprobe.txt" "^RESULT http80 closed" "v7 outside: port 80 does not answer HTTP from outside the guest"
+	has "$W/secprobe.txt" "^RESULT https443 closed" "v7 outside: port 443 completes no TLS handshake from outside the guest"
+	if [ -n "${EX4_E2E_SSHKEY:-}" ]; then
+		has "$W/secprobe.txt" "^RESULT ssh_key works" "v7 outside: key ssh as root still works (dropbear accepts the key with root's field '*')"
+		has "$W/secprobe.txt" "^RESULT shadow_root_field star" "v7 outside: over that key login, root's password field reads '*'"
+		has "$W/secprobe.txt" "^RESULT ssh_password not-offered" "v7 outside: a password-only ssh attempt is refused; the server offers publickey only"
+	else
+		echo "   (no EX4_E2E_SSHKEY: the key-login checks are skipped; the self-test's field state below stands in)"
+	fi
+	has "$W/disklog.txt" "^security root_password_field locked_star" "v7 inside: the self-test reads root's password field as locked ('*'), never printing it"
+	has "$W/disklog.txt" "^security uhttpd listen_http 127.0.0.1:80 listen_https none ubus_prefix none" "v7 inside: uhttpd's settings: 127.0.0.1:80 only, no HTTPS listener, no /ubus"
+	has "$W/disklog.txt" "security: root password field locked (\*), web server on 127.0.0.1:80 only, no /ubus" "v7 inside: uci-defaults' note in the disk log"
+	TL=$(grep -a "^security tcp_lan_ports" "$W/disklog.txt" | tail -1)
+	echo "   $TL"; grep -a "^security \(udp_lan_ports\|tcp_listen_all\|udp_bound_all\)" "$W/disklog.txt" | tail -3 | sed 's/^/   /'
+	echo "$TL" | awk '/^security tcp_lan_ports/ { for (i = 3; i <= NF; i++) if ($i != "22" && $i != "53" && $i != "none") bad = bad " " $i; exit (bad == "" ? 0 : 1) }' \
+	 && [ -n "$TL" ] && ok "v7 inside: no TCP port but 22 (dropbear) and 53 (dnsmasq) is bound to a non-loopback address" || no "v7 inside: TCP ports on a non-loopback address: '$TL'"
 	;;
 silent)
 	[ $SELF = 1 ] && ok "the guest REBOOTED by itself after $RAN s (qemu -no-reboot exits on a guest reset)" || no "the guest did not reboot in $SECS s"
