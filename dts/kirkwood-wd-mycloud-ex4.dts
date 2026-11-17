@@ -1,0 +1,198 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * Western Digital My Cloud EX4 (original, "Lightning 4A"), Marvell Kirkwood 88F6282, 512 MiB, 256 MiB NAND.
+ *
+ * Written Nov 16-17 2026 by aliaholes, against Linux 6.12.112's kirkwood dtsi. With -DEX4_TRIAL this tree has
+ * booted OpenWrt 25.12.6 (Linux 6.12.112) from RAM on one unit (docs/RUNS.md, runs 5 to 7): network, four SATA
+ * bays, both UARTs, USB 3, watchdog, NAND read-only. It has never been used with writable flash.
+ * Every value below is read from that unit unless marked UNKNOWN:
+ *   - MPP / GPIO: live register read on the stock firmware:
+ *       MPP_CTRL0..4 = 21111111 033b3311 33331100 33003333 00000033
+ *       mpp0-5,18,19 nand · mpp6 sysrst · mpp7 spi-cs? (sel 2, UNKNOWN use) · mpp8,9 twsi0 · mpp10,11 uart0
+ *       mpp12 sel 0xb (UNKNOWN use) · mpp13,14 uart1 · mpp20-27,30-33 ge1 · everything else GPIO
+ *       GPIO outputs driven by stock: 17=1 28=0 29=0 34=1 35=1 36=1 37=1 38=1 40=1 45=0 46=0 47=0 48=0
+ *       GPIO inputs: 15 16 39 41 42 43 44 49 (read 0 0 0 1 0 1 0 1 at rest)
+ *   - PHY addresses 0 (eth0) and 1 (eth1): ethtool PHYAD on the stock firmware. See the note at &mdio.
+ *   - PCIe port 0 = Marvell 88SX7042 (the four bays, sata_mv), port 1 = Etron EJ168 xHCI: stock dmesg.
+ *   - uart1 (mpp13/14) = the front-panel microcontroller: fan, temperatures, clock, buttons, 19200 8N1
+ *     (docs/MCU-PROTOCOL.md). This tree only brings the port up; userland/ex4fan.c speaks to it.
+ *   - NAND: Samsung 256 MiB, 2 KiB page, 128 KiB block, 1-bit software Hamming in the standard OOB layout
+ *     (checked on the with-OOB dumps: the stock ECC bytes equal mainline's on every page looked at).
+ *     Partition names, offsets and order are WD's own, copied from the stock kernel's boot log. Mind the order:
+ *     WD's partitions 4, 5, 6 are NOT in address order ("reserve", mtd6, sits below "rescue firmware", mtd4).
+ * Not described on purpose: LEDs, buttons, bay power, fan. Power LED = GPIO 29 (blue) / 28 (red), bay LEDs red =
+ * GPIO 45-48 (docs/HARDWARE.md); their polarity has not been seen, the buttons arrive as frames from the micro,
+ * and this tree claims none of those pins, so they stay as the previous stage left them.
+ *
+ * EX4_TRIAL (cpp -DEX4_TRIAL): every NAND partition is read-only. That is the tree for the RAM trial boot:
+ * the trial kernel cannot write flash through MTD at all.
+ */
+/dts-v1/;
+
+#include "kirkwood.dtsi"
+#include "kirkwood-6282.dtsi"
+
+#ifdef EX4_TRIAL
+#define EX4_RO read-only;
+#else
+#define EX4_RO
+#endif
+
+/ {
+	model = "Western Digital My Cloud EX4";
+	compatible = "wd,mycloud-ex4", "marvell,kirkwood-88f6282", "marvell,kirkwood";
+
+	memory {
+		device_type = "memory";
+		reg = <0x00000000 0x20000000>;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8";
+		stdout-path = &uart0;
+	};
+};
+
+&uart0 {
+	pinctrl-0 = <&pmx_uart0>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&uart1 {
+	/* front-panel / fan microcontroller */
+	pinctrl-0 = <&pmx_uart1>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&i2c0 {
+	/* stock registers the bus (mv64xxx_i2c.0) and no client driver; devices on it: UNKNOWN */
+	status = "okay";
+};
+
+&wdt {
+	status = "okay";
+};
+
+&nand {
+	chip-delay = <40>;
+	status = "okay";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "u-boot";
+			reg = <0x00000000 0x00100000>;
+			read-only;
+		};
+
+		partition@100000 {
+			label = "uImage";
+			reg = <0x00100000 0x00500000>;
+			EX4_RO
+		};
+
+		partition@600000 {
+			label = "ramdisk";
+			reg = <0x00600000 0x00500000>;
+			EX4_RO
+		};
+
+		partition@b00000 {
+			label = "image";
+			reg = <0x00b00000 0x0cd00000>;
+			EX4_RO
+		};
+
+		/*
+		 * The last three follow WD's numbering (mtd4, mtd5, mtd6), which is not address order. The stock
+		 * kernel's own boot log on firmware 2.12.127:
+		 *   0x00000dd00000-0x00000ec00000 : "rescue firmware"
+		 *   0x00000ec00000-0x000010000000 : "config"
+		 *   0x00000d800000-0x00000dd00000 : "reserve"
+		 */
+		partition@dd00000 {
+			/* block 0 holds the unit's identity (both MACs, serial): never written */
+			label = "rescue firmware";
+			reg = <0x0dd00000 0x00f00000>;
+			read-only;
+		};
+
+		partition@ec00000 {
+			label = "config";
+			reg = <0x0ec00000 0x01400000>;
+			EX4_RO
+		};
+
+		partition@d800000 {
+			label = "reserve";
+			reg = <0x0d800000 0x00500000>;
+			EX4_RO
+		};
+	};
+};
+
+&pciec {
+	status = "okay";
+};
+
+&pcie0 {
+	/* Marvell 88SX7042, four SATA bays */
+	status = "okay";
+};
+
+&pcie1 {
+	/* Etron EJ168 USB 3.0 */
+	status = "okay";
+};
+
+&mdio {
+	status = "okay";
+
+	/*
+	 * The two PHYs are Marvell 88E151x-class parts. The id in "compatible" is deliberately NOT theirs: it is
+	 * Marvell's vendor number with model 0, an id no PHY driver claims (tests/phy-id-check.py proves that
+	 * against the kernel source), so the kernel does not read the chip's id and runs the PHY with its built-in
+	 * generic driver.
+	 *
+	 * Why: Linux's Marvell PHY driver looks at the 88E151x's FIBRE register page on every status poll (once a
+	 * second) and then switches back to the copper page. The Kirkwood MAC (mv643xx_eth) takes link, speed and
+	 * duplex from its own hardware polling of the PHY's registers, sees the fibre page's "no link" in that
+	 * window, and reports link down, then up again 6 ms later: about 110 carrier changes a minute on the
+	 * cabled port, each one throwing the transmit queue away (measured on the unit, runs 5 to 7). WD's kernel
+	 * never touches the page register after start-up, and neither does the generic driver.
+	 *
+	 * Cost: no PHY temperature sensor (hwmon), and nobody reprograms the PHY's RGMII delays or LED modes:
+	 * they stay as the boot loader (or the stock system before a RAM trial) set them, which is what stock
+	 * itself runs with.
+	 */
+	ethphy0: ethernet-phy@0 {
+		compatible = "ethernet-phy-id0141.0000", "ethernet-phy-ieee802.3-c22";
+		reg = <0>;
+	};
+
+	ethphy1: ethernet-phy@1 {
+		compatible = "ethernet-phy-id0141.0000", "ethernet-phy-ieee802.3-c22";
+		reg = <1>;
+	};
+};
+
+&eth0 {
+	status = "okay";
+};
+
+&eth0port {
+	phy-handle = <&ethphy0>;
+};
+
+&eth1 {
+	status = "okay";
+};
+
+&eth1port {
+	phy-handle = <&ethphy1>;
+};
