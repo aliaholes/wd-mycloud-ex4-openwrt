@@ -103,6 +103,7 @@ watch)
 				tssh "$ip" 'logread' > "$OUT/trial-logread.txt"
 				tssh "$ip" 'dmesg' > "$OUT/trial-dmesg.txt"
 				DETAIL="kernel=$(awk 'NR == 1 { print $3 }' "$OUT/trial-uname.txt") selftest_bytes=$(wc -c < "$OUT/trial-selftest.txt") dmesg_lines=$(wc -l < "$OUT/trial-dmesg.txt")"
+				grep -E '^security (root_password_field|uhttpd|tcp_lan_ports|udp_lan_ports) ' "$OUT/trial-selftest.txt" 2>/dev/null | while read -r SL; do say "self-test (v7): $SL"; done
 			fi
 			if [ "$TOKEN" = yes ]; then
 				FS=$(tssh "$ip" 'cat /tmp/ex4fan.status' | head -1)
