@@ -42,11 +42,36 @@ rebuild for it, and make sure the partition is really empty first.
 To keep a bay out of it entirely (a disk with bad sectors: ours had one, and reading it stalled the stock kernel
 for minutes), build with `LOG_SKIP_PORT` and `LOG_SKIP_PART`.
 
+## SECURITY NOTE, Nov 17 2026: the web door of older bundles
+
+**What was open.** Every bundle built before this date (the build log's "v6" and earlier; on GitHub, every commit
+before this note) left OpenWrt's own web server running on the trial system: uhttpd on ports 80 and 443 of
+every address, with the LuCI web interface and the `/ubus` door to rpcd. root's password field in the image is
+empty, and rpcd's login (which LuCI uses too) treats an empty field as "no password needed". Our overlay only
+switched ssh to key-only. So while a trial ran (at most about 20 minutes, until the automatic return to stock),
+anyone on the same LAN could log in (we reproduced this in emulation on the old image) to the web interface or the `/ubus` door as root with an empty or
+any password, and from there change anything on the running trial system, including undoing the read-only
+settings (the device tree marks the NAND read-only, but root can load kernel code: that wall is against
+accidents, not against an intruder). Nothing was reachable from outside your LAN unless your router forwards
+ports to the NAS. We found this in our own review, not from a report.
+
+**What changed.** At first boot, before any network service starts, the overlay now
+(1) turns root's empty password field into `*`, which matches no password at all (the ssh key still works),
+and (2) gives the web server one listener, `127.0.0.1:80`, with no HTTPS listener and no `/ubus` door, so it
+cannot be reached from the LAN. The self-test gains a `-- security` block (root's password field as a state,
+never the field itself; the web server's settings; every port open on a LAN address), and `verdict` prints it
+as a `SECURITY:` line. `build/mkoverlay.py` now refuses to build without a key. `tests/qemu-e2e.sh` checks all of
+it from outside an emulated trial system: logins on `/ubus` and LuCI with an empty and a random password fail,
+ports 80 and 443 do not answer, and the key still logs in.
+
+**What to do.** If you built a bundle before this note, do not run it again: pull this repository and rebuild.
+
 ## Security of the trial system
 
-- **Key-only ssh.** An OpenWrt initramfs image has no root password. `build.sh` therefore refuses to build
-  without a public key, installs it, and switches password logins off. Without that, anyone on your LAN could log
-  in as root.
+- **Key-only.** An OpenWrt initramfs image has no root password. `build.sh` and `build/mkoverlay.py` therefore
+  refuse to build without a public key; the overlay installs it, switches ssh password logins off, locks root's
+  empty password field (`*`) and keeps the web server on `127.0.0.1` (see the security note above). Without that,
+  anyone on your LAN could log in as root.
 - **Generate your OWN key** (`ssh-keygen -t ed25519 -f ~/.ssh/ex4-trial`) and keep the private half on your
   computer. This repository contains no key of any kind, and a bundle you build is yours alone: do not share a
   built bundle, because it carries your public key and your choice of log partition size.
