@@ -9,6 +9,8 @@
 #   EX4_E2E_ZIMAGE + EX4_E2E_DTB   a test kernel built from tests/e2e-kernel.defconfig and its versatile-pb.dtb
 #                                  patched by tests/mk-e2e-dtb.sh: also runs tests/qemu-e2e.sh in its four modes
 #                                  (the overlay inside OpenWrt's real userspace in qemu; about 6 minutes; needs sgdisk, cpio)
+#   EX4_E2E_SSHKEY                 (v7, with the two above) the PRIVATE half of the key the bundle was built with: the
+#                                  e2e's security probe then also logs in with it (a throwaway test key, never your real one)
 #   EX4_TEST_STOCK_BUSYBOX + EX4_TEST_STOCK_ROOT   YOUR OWN copy of the stock firmware's /bin/busybox and a folder whose
 #                                  lib/ holds its libc: also runs the trial script's awk programs on the stock awk
 #   EX4_STOCK_READ_DAEMON          YOUR OWN copy of the stock up_read_daemon: also compares the thermistor table with it
