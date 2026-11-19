@@ -436,6 +436,44 @@ t "X3 link: run 7's flap as a rate, and a port whose counter could not be read" 
 v6payload "$W/p-v6c.txt" good noclock
 dlog sda3 "$W/p-v6c.txt" 00112233445566778899aabbccddeeff 1 405 1241
 t "X4 no clock line of ex4fan on record: the verdict says unknown, not no (the review nit of bundle-v5)" 0 "^V5 CLOCK: no clock line on record · system clock set from the micro: unknown (no clock line on record) · the self-test's date: 2026-11-17 09:40:46 UTC rtc devices:\$" V
+# ---- v8: the web interface's door in the SECURITY line, and the one LCD test frame ----
+t "Y0 check names the v8 web interface and the one LCD test frame" 0 "v8 panel: ex4fan leaves the front screen alone (LCD Tier A off) and the self-test sends ONE LCD frame" R check
+v8sec() {       # $1 = webui-good | webui-bad | loop   (the self-test's v8 security lines + the panel send-test block)
+	echo "-- security (v8)"
+	echo "security root_password_field locked_star (no password matches; the ssh key still works)"
+	case "$1" in
+	loop) echo "security uhttpd listen_http 127.0.0.1:80 listen_https none ubus_prefix none"; echo "security tcp_lan_ports 22"; echo "security udp_lan_ports 546"; echo "security webui no";;
+	webui-good) echo "security uhttpd listen_http 0.0.0.0:80,[::]:80 listen_https 0.0.0.0:443,[::]:443 ubus_prefix /ubus"; echo "security tcp_lan_ports 22 80 443"; echo "security udp_lan_ports 546"; echo "security webui yes"
+		echo "security http80 HTTP/1.1 307 Temporary Redirect location https://ex4/ubus"
+		echo 'security ubus_anon_session_login {"jsonrpc":"2.0","id":1,"error":{"code":-32002,"message":"Access denied"}}'
+		echo 'security ubus_anon_ex4_status {"jsonrpc":"2.0","id":2,"error":{"code":-32002,"message":"Access denied"}}'
+		echo 'security ubus_anon_setup_state {"jsonrpc":"2.0","id":3,"result":[0,{"claimed":false,"name":"ex4-trial"}]}'
+		echo "security uhttpd_max_requests 16 redirect_https 1 home /www-ex4 rpcd_logins 0"
+		echo "-- panel send-test (v8: ONE LCD frame)"; echo "send-test: ONE LCD frame (WD's SysName, text 'ex4-trial', 15 bytes, one try): ack=1 (the micro ACKed it) frame fa04010009657834"
+		;;
+	webui-bad) echo "security uhttpd listen_http 0.0.0.0:80 listen_https 0.0.0.0:443 ubus_prefix /ubus"; echo "security tcp_lan_ports 22 80 443 139"; echo "security udp_lan_ports 546"; echo "security webui yes"
+		echo "security http80 HTTP/1.1 200 OK location "
+		echo 'security ubus_anon_session_login {"jsonrpc":"2.0","id":1,"result":[0,{"ubus_rpc_session":"x"}]}'
+		echo 'security ubus_anon_ex4_status {"jsonrpc":"2.0","id":2,"error":{"code":-32002,"message":"Access denied"}}'
+		echo 'security ubus_anon_setup_state '
+		echo "security uhttpd_max_requests 3 redirect_https 0 home /www rpcd_logins 1"
+		echo "-- panel send-test (v8: ONE LCD frame)"; echo "send-test: no answer from ex4fan in 10 s (an older daemon, or not running)"
+		;;
+	esac
+}
+for v8k in webui-good webui-bad loop; do       # (not $k: v6payload sets k)
+	v6payload "$W/p-v8$v8k.base" good
+	awk '/^== bays seen/ { exit } { print }' "$W/p-v8$v8k.base" > "$W/p-v8$v8k.txt"; v8sec $v8k >> "$W/p-v8$v8k.txt"; awk 'f { print } /^== bays seen/ { f = 1; print }' "$W/p-v8$v8k.base" >> "$W/p-v8$v8k.txt"
+done
+dlog sda3 "$W/p-v8webui-good.txt" 00112233445566778899aabbccddeeff 1 420 1250
+t "Y1 the web interface, door right: redirect, anonymous calls refused, unclaimed, no web login, ports 22 80 443" 0 "^SECURITY: root's password field: locked_star · uhttpd: listen_http 0.0.0.0:80,\[::\]:80 listen_https 0.0.0.0:443,\[::\]:443 ubus_prefix /ubus · TCP ports open on a LAN address: 22 80 443 · UDP: 546 · the web interface rode in: port 80 only redirects to https: yes · anonymous /ubus: session.login refused, ex4.status refused · setup state: unclaimed · web logins: 0 · LAN TCP ports 22 and 443 open and nothing but 22 / 80 / 443: yes\$" V
+t "Y1 the one LCD test frame: the micro's ACK is in the verdict" 0 "^LCD TEST FRAME: ONE LCD frame (WD's SysName, text 'ex4-trial', 15 bytes, one try): ack=1 (the micro ACKed it) frame fa04010009657834\$" V
+dlog sda3 "$W/p-v8webui-bad.txt" 00112233445566778899aabbccddeeff 1 421 1251
+t "Y2 a door left open: no redirect, an anonymous login answered, a fourth LAN port -> NO and ANSWERED" 0 "· the web interface rode in: port 80 only redirects to https: NO · anonymous /ubus: session.login ANSWERED, ex4.status refused · setup state: no answer · web logins: 1 · LAN TCP ports 22 and 443 open and nothing but 22 / 80 / 443: NO\$" V
+t "Y2 a self-test that asked for the frame and got no answer says so" 0 "^LCD TEST FRAME: no answer from ex4fan in 10 s (an older daemon, or not running)\$" V
+dlog sda3 "$W/p-v8loop.txt" 00112233445566778899aabbccddeeff 1 422 1252
+t "Y3 no web interface: v7's judgment (80 and 443 closed to the LAN)" 0 "^SECURITY: root's password field: locked_star · uhttpd: listen_http 127.0.0.1:80 listen_https none ubus_prefix none · TCP ports open on a LAN address: 22 · UDP: 546 · web ports 80 / 443 closed to the LAN: yes\$" V
+nt "Y3 ... and no LCD TEST FRAME line when the self-test has no send-test block" "^LCD TEST FRAME" V
 python3 -I -c 'import sys; open(sys.argv[1],"wb").write(bytes(4<<20))' "$W/dev/sda3"
 { echo "LAN-WITNESS run=$RUN reached=ssh ip=192.0.2.101 mac=00:90:a9:00:00:50 token=yes at=2026-11-17T01:40:00 stock_back=not-seen rounds=9 kernel=6.12.112"
   echo "# the trial's /tmp/ex4fan.log as last read:"; echo "[     4.20] ex4fan: cmd FAN=3(HIGH) ack=1 tries=1 why=start: first action"; echo "[   124.00] $ST5"
