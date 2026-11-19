@@ -1,0 +1,10 @@
+--- a/build/v7/build-v7.sh	2026-11-17 15:33:39.281631212 -0800
++++ b/build/v7/build-v7.sh	2026-11-17 15:34:22.871895659 -0800
+@@ -266,6 +266,7 @@
+ 	set -- --network-file "$R/etc/board.d/02_network" --pubkey "$PUB" --return-min "$RETURN_MIN" \
+ 		--ex4log "$B/ex4log" --log-min-sectors "$LOG_SECTORS" --log-max-sectors "$LOG_SECTORS" --tag ex4-openwrt \
+ 		--preinit-conf "$R/lib/preinit/00_preinit.conf" --ex4fan "$B/ex4fan" --ex4mac --kmods "$K" --ex4phy "$BW/ex4phy" --out "$B/overlay.cpio"
++	[ "${EX4_RWBENCH:-0}" = 1 ] && set -- "$@" --rwbench "$TOP/box/ex4-rwbench.sh"     # v8: docs/RWBENCH.md (a read-write trial only)
+ 	[ -z "$LOG_SKIP_PORT" ] || set -- "$@" --log-skip-port "$LOG_SKIP_PORT"
+ 	py "$TOP/build/mkoverlay.py" "$@" > "$BW/mkoverlay.log"
+ 	cp "$BW/mod/ex4boot.ko" "$B/ex4boot-l2off.ko"
