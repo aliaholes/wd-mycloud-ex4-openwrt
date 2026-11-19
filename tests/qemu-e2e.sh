@@ -1,5 +1,15 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
+# qemu-e2e.sh (v8 = v7 + THE WEB INTERFACE's DOOR + THE ONE LCD TEST FRAME, Nov 17 2026). The probe and the inside
+# checks follow the overlay: one built with --webui (it carries www-ex4/index.html) must show, from OUTSIDE the guest
+# through qemu's forwards, uhttpd started by its init script from the uci config 95_ex4_webui wrote (not from
+# command-line flags): port 443 completes TLS and serves the page, port 80 answers ONLY with a redirect to https (no
+# page, no /ubus), POST /ubus over https with no session: session.login, ex4.status refused ("Access denied"),
+# ex4.setup_state answers claimed:false (the one door open before sign-in); and inside, the self-test sees the same
+# from the guest's own tools, no rpcd login exists, and no TCP port but 22, 80 and 443 is on a LAN address (53 only
+# when the rootfs carries dnsmasq). An overlay without --webui is held to v7's checks (80 and 443 closed). Every mode:
+# the fake micro ACKs LCD frames, and at most ONE LCD frame, the self-test's send-test (WD's SysName), is on the wire;
+# MODE normal requires exactly that one, ACKed, in the disk log. Below: v7's header.
 # qemu-e2e.sh (v7 = v6 + THE SECURITY CHECKS, Nov 17 2026). MODE normal also forwards three host ports on 127.0.0.1
 # through each of qemu's two user networks to the guest's ports 80, 443 and 22, and about 250 s into the boot (uhttpd
 # starts at S50, the last init script about 160 s in) probes them from OUTSIDE the guest: a JSON-RPC session.login
@@ -9,7 +19,8 @@
 # field as a STATE (star / EMPTY / other) plus a password-only attempt (PASS = the server offers publickey only).
 # PASS = every login refused, 80 and 443 closed, port 22 reachable; inside the guest the self-test's "-- security"
 # block says root's field is locked ('*'), uhttpd listens on 127.0.0.1:80 only with no /ubus, and no TCP port but 22
-# (dropbear) and 53 (dnsmasq's DNS) is bound to a non-loopback address. Below: v6's header.
+# (dropbear), and 53 when the rootfs has dnsmasq (the official image; v7/v8 images have none), is bound to a non-loopback
+# address. Below: v6's header.
 # qemu-e2e.sh (v5 = qemu-e2e.sh + the run-7 additions) : bundle-v5's overlay inside the trial's real USERSPACE, end
 # to end, on an emulated ARM926 (qemu versatilepb). Off the box. What v5 adds to the machine and to MODE normal:
 #   * a 64 MiB CFI flash whose device tree carries the EX4's partition names; the "rescue firmware" partition starts
@@ -63,6 +74,8 @@ print(" ".join(str(s.getsockname()[1]) for s in ss))')
 	HF1=",hostfwd=tcp:127.0.0.1:$(fp 4)-:80,hostfwd=tcp:127.0.0.1:$(fp 5)-:443,hostfwd=tcp:127.0.0.1:$(fp 6)-:22"
 fi
 [ -e "$W" ] && { echo "REFUSED: $W exists"; exit 1; }
+WEBUI=0; grep -a -q 'www-ex4/index.html' "$OVL" && WEBUI=1          # v8: an overlay built with --webui
+DNSM=0; [ -e "$ROOT/usr/sbin/dnsmasq" ] && DNSM=1
 mkdir -p "$W"; W=$(cd "$W" && pwd)
 gcc -O1 -o "$W/ex4log-native" "$XLOGSRC"
 ( cd "$ROOT" && find . | cpio -o -H newc -R 0:0 --quiet ) > "$W/rootfs.cpio"
@@ -78,6 +91,15 @@ ex4_fan_start() {
 
 boot_hook_add preinit_essential ex4_fan_start
 HOOK
+	( cd "$W/t" && find . | cpio -o -H newc -R 0:0 --quiet ) >> "$W/initrd.cpio"
+fi
+if [ "$MODE" = deadman ]; then     # Nov 17 2026 (v9.1 suite): with --return-min 1 BOTH timers are armed and S99's auto-return (S99 + 20 s +
+	# self-test + 1 min) beat the deadman (S03 + 3 min) whenever the emulated boot was quick (S99 at 86 s): a race in the TEST, not the
+	# product. The mode proves the deadman needs no S99, so S99's rc.d link is replaced here, TEST ONLY, by a no-op that leaves a note
+	# (a later cpio entry of the same name replaces the earlier one). The shipped overlay is untouched.
+	mkdir -p "$W/t/etc/rc.d"
+	printf '#!/bin/sh\n# TEST ONLY (qemu-e2e.sh deadman): S99 auto-return disabled so the S03 deadman alone must reboot\n[ "$1" = boot ] && /usr/sbin/ex4log note "e2e deadman: S99 auto-return disabled by the test"\nexit 0\n' > "$W/t/etc/rc.d/S99ex4-trial"
+	chmod 755 "$W/t/etc/rc.d/S99ex4-trial"
 	( cd "$W/t" && find . | cpio -o -H newc -R 0:0 --quiet ) >> "$W/initrd.cpio"
 fi
 P3S=2098831; DISKMB=$(( (P3S + 2047) / 2048 + 40 ))
@@ -145,6 +167,41 @@ def luci_login(port, pw):
     if st is None: return "refused", t
     ok = "sysauth" in t.lower() and " 302 " in st + " "
     return ("OPEN" if ok else "refused"), "%s, %s" % (st, "a sysauth cookie came back" if ok else "no sysauth cookie")
+def https(port, method, path, body=b"", ctype="application/json"):
+    """v8: one request over TLS; returns (status line, full text) or (None, why)"""
+    try:
+        raw = socket.create_connection(("127.0.0.1", port), timeout=15)
+        ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+        s = ctx.wrap_socket(raw, server_hostname="ex4")
+        req = ("%s %s HTTP/1.0\r\nHost: ex4\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n" % (method, path, ctype, len(body))).encode() + body
+        s.sendall(req); data = b""
+        while True:
+            c = s.recv(65536)
+            if not c: break
+            data += c
+        s.close()
+    except (OSError, ssl.SSLError) as e:
+        return None, "no HTTPS answer (%s)" % e.__class__.__name__
+    if not data.startswith(b"HTTP/"):
+        return None, "no HTTP answer over TLS (%d bytes back)" % len(data)
+    t = data.decode("latin-1"); return t.split("\r\n", 1)[0], t
+def rpc(port, obj, method, args):
+    body = json.dumps({"jsonrpc": "2.0", "id": 7, "method": "call", "params": ["0" * 32, obj, method, args]}).encode()
+    return https(port, "POST", "/ubus", body)
+def get80(port, path):
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=8)
+        s.sendall(("GET %s HTTP/1.0\r\nHost: ex4\r\n\r\n" % path).encode()); data = b""
+        while True:
+            c = s.recv(65536)
+            if not c: break
+            data += c
+        s.close()
+    except OSError as e:
+        return None, "", "no HTTP answer (%s)" % e.__class__.__name__
+    t = data.decode("latin-1"); head, _, body = t.partition("\r\n\r\n")
+    loc = [l.split(":", 1)[1].strip() for l in head.split("\r\n")[1:] if l.lower().startswith("location:")]
+    return head.split("\r\n", 1)[0], (loc[0] if loc else ""), body
 def tls(port):
     try:
         raw = socket.create_connection(("127.0.0.1", port), timeout=8)
@@ -169,7 +226,8 @@ def ssh(port, args, cmd):
         return 255, "", "timeout"
 res = {}
 def put(name, val, why):
-    worst = {"OPEN": 3, "answers": 3, "offered": 3, "EMPTY": 3, "other": 2, "works": 2, "yes": 2, "refused": 1, "closed": 1, "star": 1, "not-offered": 1}
+    worst = {"OPEN": 3, "answers": 3, "offered": 3, "EMPTY": 3, "OTHER": 3, "other": 2, "works": 2, "yes": 2, "served": 2, "redirects": 2, "denied": 1, "unclaimed": 1,
+             "refused": 1, "closed": 1, "star": 1, "not-offered": 1}
     say("  %-20s %-9s %s" % (name, val, why))
     if name not in res or worst.get(val, 0) > worst.get(res[name], 0): res[name] = val
 rnd = secrets.token_hex(8)
@@ -180,6 +238,25 @@ for i, n in enumerate(nets):
         put(name, v, why)
     st, t = http(n["http"], "/", b"", "text/plain"); put("http80", "closed" if st is None else "answers", t if st is None else st)
     v, why = tls(n["https"]); put("https443", v, why)
+    # v8: the web interface's door, asked the way a browser on the LAN would
+    for path in ("/", "/ubus"):
+        st, loc, body = get80(n["http"], path)
+        red = st is not None and (" 301 " in st + " " or " 302 " in st + " " or " 307 " in st + " " or " 308 " in st + " ") and loc.startswith("https://") and "<html" not in body.lower()
+        put("http80_redirect", "redirects" if red else ("closed" if st is None else "OTHER"), "GET %s on 80: %s, Location %r, %d body bytes" % (path, st, loc, len(body)))
+    st, t = https(n["https"], "GET", "/")
+    page = st is not None and " 200 " in st + " " and "<!doctype html" in t.lower() and "content-security-policy" in t.lower()
+    put("https_page", "served" if page else ("closed" if st is None else "OTHER"), "GET / on 443: %s, %d bytes" % (st, len(t)))
+    for name, (obj, m, a) in (("anon_session_login", ("session", "login", {"username": "root", "password": ""})), ("anon_ex4_status", ("ex4", "status", {})),
+                              ("anon_file_read", ("file", "read", {"path": "/etc/shadow"}))):
+        st, t = rpc(n["https"], obj, m, a)
+        body = t.partition("\r\n\r\n")[2] if st else ""
+        # refused = rpcd's ACL says "Access denied", or the object does not exist at all ("Object not found": e.g. this image has
+        # no rpcd file plugin); anything carrying a result or a session id is not refused
+        v = "denied" if st and ("Access denied" in body or "Object not found" in body) and '"result"' not in body and "ubus_rpc_session" not in body else ("closed" if st is None else "OTHER")
+        put(name, v, "%s.%s over https: %s %s" % (obj, m, st, body[:120]))
+    st, t = rpc(n["https"], "ex4", "setup_state", {})
+    body = t.partition("\r\n\r\n")[2] if st else ""
+    put("anon_setup_state", "unclaimed" if '"claimed":false' in body.replace(" ", "") else ("closed" if st is None else "OTHER"), "ex4.setup_state over https: %s %s" % (st, body[:160]))
     if key:
         rc, so, se = ssh(n["ssh"], ["-i", key, "-o", "IdentitiesOnly=yes", "-o", "PasswordAuthentication=no"],
                          "F=$(sed -n 's/^root:\\([^:]*\\):.*/\\1/p' /etc/shadow); case \"$F\" in '*') echo star;; '') echo EMPTY;; *) echo other;; esac")
@@ -188,7 +265,8 @@ for i, n in enumerate(nets):
         rc, so, se = ssh(n["ssh"], ["-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password,keyboard-interactive"], "true")
         offered = "password" in se.split("Permission denied", 1)[-1] or "keyboard-interactive" in se.split("Permission denied", 1)[-1]
         put("ssh_password", "offered" if offered else "not-offered", "rc %d: %s" % (rc, se[-120:]))
-for k in ("reach", "ubus_login_empty", "ubus_login_random", "luci_login_empty", "http80", "https443", "ssh_key", "shadow_root_field", "ssh_password"):
+for k in ("reach", "ubus_login_empty", "ubus_login_random", "luci_login_empty", "http80", "https443", "ssh_key", "shadow_root_field", "ssh_password",
+          "http80_redirect", "https_page", "anon_session_login", "anon_ex4_status", "anon_file_read", "anon_setup_state"):
     say("RESULT %s %s" % (k, res.get(k, "skipped")))
 PY
 }
@@ -228,15 +306,19 @@ d = json.load(open(sys.argv[1])); fr = [h for t, h in d["frames"]]
 WL = {"fa0200010000fb": "LOW", "fa0200020000fb": "MEDIUM", "fa0200030000fb": "HIGH", "fa0200040000fb": "MAX", "fa0308010000fb": "TH_SATA", "fa0308020000fb": "TH_MAIN",
       "fa0301000000fb": "READY", "fa0100030100fb": "CLOCK_READ"}
 s = bytes.fromhex(d["stream"]); noise = s[:s.index(b"\xfa")] if b"\xfa" in s else s
+# v8: the self-test's ONE LCD test frame (ex4fan ctl send-test: WD's SysName, FA 04 01 00 LEN text FB) is the only other frame allowed
+lcd = [h for h in fr if h.startswith("fa040100") and len(h) == 2 * (5 + int(h[8:10], 16) + 1)]
 seq = []
 for h in fr:
-    n = WL.get(h, "??" + h)
+    n = WL.get(h, "LCD_NAME" if h in lcd else "??" + h)
     if not seq or seq[-1] != n: seq.append(n)
-print("   %d frames from the guest (%d bytes of line noise before the first), order without repeats: %s" % (len(fr), len(noise), " ".join(seq[:24])))
+print("   %d frames from the guest (%d bytes of line noise before the first), order without repeats: %s; LCD frames: %s" % (len(fr), len(noise), " ".join(seq[:24]), [bytes.fromhex(h[10:-2]).decode() for h in lcd]))
 assert fr and fr[0] == "fa0200030000fb", fr[:3]
-assert all(h in WL for h in fr), [h for h in fr if h not in WL][:5]
-assert d["leftover"] == "" and len(s) - len(noise) == 7 * len(fr), "bytes outside whole frames"
+assert all(h in WL or h in lcd for h in fr), [h for h in fr if h not in WL and h not in lcd][:5]
+assert len(lcd) <= 1, ("more than ONE LCD frame", lcd)
+assert d["leftover"] == "" and len(s) - len(noise) == sum(len(h) // 2 for h in fr), "bytes outside whole frames"
 if sys.argv[2] == "normal":
+    assert len(lcd) == 1 and bytes.fromhex(lcd[0][10:-2]).decode() == "ex4-trial", ("normal: exactly ONE LCD frame, the host name", lcd)
     assert "LOW" not in seq and "MEDIUM" not in seq and {"TH_SATA", "TH_MAIN"} <= set(seq), seq
     assert fr.count("fa0301000000fb") == 1 and fr.count("fa0100030100fb") == 1, ("READY / CLOCK_READ counts", fr.count("fa0301000000fb"), fr.count("fa0100030100fb"))
     assert fr.index("fa0301000000fb") > fr.index("fa0308020000fb") and len(d["events_sent"]) == 3, ("READY after the first reading; three button frames sent by the fake micro", d["events_sent"])
@@ -244,6 +326,9 @@ if sys.argv[2] == "silent": assert fr[:10] == ["fa0200030000fb"] * 10 and "fa030
 if sys.argv[2] == "rpmzero": assert "MAX" in seq, seq
 PY
 has "$W/serial.log" "ttyS1 at " "the guest has a 16550 as ttyS1 (the second pci-serial port)"
+[ "$MODE" = normal ] && has "$W/disklog.txt" "ctl send-test: ONE LCD frame (WD's SysName, text 'ex4-trial', [0-9]* bytes, one try): ack=1 (the micro ACKed it) frame fa040100" "v8 panel: the self-test asked ex4fan for its ONE LCD test frame; one try, ACKed, in the disk log"
+[ "$MODE" = normal ] && has "$W/disklog.txt" "^send-test: ONE LCD frame" "v8 panel: the self-test recorded the send-test result (/tmp/ex4fan.sendtest)"
+[ "$MODE" = normal ] && has "$W/disklog.txt" '"panel":{"mode":"off"' "v8 panel: /tmp/ex4fan.json is in the self-test, and the panel is OFF (no Tier A feed by default)"
 has "$W/serial.log" "ex4fan: start pid=" "the preinit hook started ex4fan (its start line is on the console)"
 has "$W/serial.log" "ex4fan: port /dev/.*ttyS1 open: 19200 8N1" "ex4fan opened ttyS1 and set 19200 8N1"
 [ "$(outside)" = "$O0" ] && ok "wall: every byte of the disk outside partition 3's [1 MiB, 3 MiB) is unchanged (SMART reads write nothing)" || no "wall: the disk changed outside the log region"
@@ -253,6 +338,8 @@ deadman)
 	[ $SELF = 1 ] && ok "the guest REBOOTED by itself after $RAN s" || no "the guest did not reboot in $SECS s"
 	has "$W/disklog.txt" "rc.d S03: deadman armed: reboot to stock in 1 + 2 min unless /tmp/ex4-stay exists" "disk log: the deadman was armed at S03 (this overlay: --return-min 1, so 3 minutes)"
 	has "$W/disklog.txt" "deadman: 1 + 2 min, no /tmp/ex4-stay: rebooting to stock now" "disk log: the deadman's note, written before it rebooted"
+	has "$W/disklog.txt" "e2e deadman: S99 auto-return disabled by the test" "disk log: S99's auto-return was out of the race (the test's stand-in ran), so only the deadman could reboot"
+	! grep -q "auto-return: no /tmp/ex4-stay, rebooting to stock now" "$W/disklog.txt" && ok "disk log: no S99 auto-return note (it cannot have been S99)" || no "disk log: S99's auto-return fired in deadman mode"
 	hasnt "$W/disklog.txt" "FAILSAFE" "no fail-safe of ex4fan was involved"
 	has "$W/serial.log" "reboot: Restarting system" "console: the kernel restarted"
 	python3 -I -c 'import sys; r = int(sys.argv[1]); sys.exit(0 if 170 <= r <= 290 else 1)' "$RAN" && ok "timing: the reboot came $RAN s after qemu started (armed about 20 s into the boot + 180 s + the note's 4 s)" || no "timing: $RAN s"
@@ -304,8 +391,19 @@ normal)
 	has "$W/secprobe.txt" "^RESULT ubus_login_empty refused" "v7 outside: POST /ubus session.login as root with an EMPTY password gets no session"
 	has "$W/secprobe.txt" "^RESULT ubus_login_random refused" "v7 outside: POST /ubus session.login as root with a RANDOM password gets no session"
 	has "$W/secprobe.txt" "^RESULT luci_login_empty refused" "v7 outside: a LuCI login as root with an empty password gets no sysauth cookie"
+	if [ $WEBUI = 1 ]; then
+	echo "--- v8: this overlay carries the web interface (uhttpd started by its init script from the uci config 95_ex4_webui wrote)"
+	has "$W/secprobe.txt" "^RESULT http80_redirect redirects" "v8 outside: port 80 answers GET / and GET /ubus ONLY with a redirect to https:// (no page, no /ubus on plain HTTP)"
+	has "$W/secprobe.txt" "^RESULT https443 answers" "v8 outside: port 443 completes a TLS handshake (the box's own certificate, made by px5g at first boot)"
+	has "$W/secprobe.txt" "^RESULT https_page served" "v8 outside: GET / over https serves the interface's one page (with its Content-Security-Policy)"
+	has "$W/secprobe.txt" "^RESULT anon_session_login denied" "v8 outside: POST /ubus session.login with no session over https: Access denied (rpcd's session.login door is closed to browsers)"
+	has "$W/secprobe.txt" "^RESULT anon_ex4_status denied" "v8 outside: POST /ubus ex4.status with no session: Access denied"
+	has "$W/secprobe.txt" "^RESULT anon_file_read denied" "v8 outside: POST /ubus file.read /etc/shadow with no session: refused (Access denied, or no file object at all)"
+	has "$W/secprobe.txt" "^RESULT anon_setup_state unclaimed" "v8 outside: ex4.setup_state, the one door open before sign-in, answers claimed:false (no administrator, no default password)"
+	else
 	has "$W/secprobe.txt" "^RESULT http80 closed" "v7 outside: port 80 does not answer HTTP from outside the guest"
 	has "$W/secprobe.txt" "^RESULT https443 closed" "v7 outside: port 443 completes no TLS handshake from outside the guest"
+	fi
 	if [ -n "${EX4_E2E_SSHKEY:-}" ]; then
 		has "$W/secprobe.txt" "^RESULT ssh_key works" "v7 outside: key ssh as root still works (dropbear accepts the key with root's field '*')"
 		has "$W/secprobe.txt" "^RESULT shadow_root_field star" "v7 outside: over that key login, root's password field reads '*'"
@@ -314,12 +412,27 @@ normal)
 		echo "   (no EX4_E2E_SSHKEY: the key-login checks are skipped; the self-test's field state below stands in)"
 	fi
 	has "$W/disklog.txt" "^security root_password_field locked_star" "v7 inside: the self-test reads root's password field as locked ('*'), never printing it"
+	if [ $WEBUI = 1 ]; then
+	has "$W/disklog.txt" "^security uhttpd listen_http 0.0.0.0:80,\[::\]:80 listen_https 0.0.0.0:443,\[::\]:443 ubus_prefix /ubus" "v8 inside: uhttpd's uci config as 95_ex4_webui wrote it (80 + 443 on every address, /ubus), and 99-ex4-trial did NOT pin it back to loopback"
+	has "$W/disklog.txt" "^security webui yes" "v8 inside: the self-test knows the interface rode in"
+	has "$W/disklog.txt" "^security http80 HTTP/1.[01] 30[1278] .* location https://" "v8 inside: port 80, asked from the guest itself (busybox nc), answers GET /ubus with a redirect to https"
+	has "$W/disklog.txt" "^security ubus_anon_session_login .*Access denied" "v8 inside: session.login with no session, over https from the guest (uclient-fetch): Access denied"
+	has "$W/disklog.txt" "^security ubus_anon_ex4_status .*Access denied" "v8 inside: ex4.status with no session: Access denied"
+	has "$W/disklog.txt" '^security ubus_anon_setup_state .*"claimed":false' "v8 inside: ex4.setup_state with no session: claimed false"
+	has "$W/disklog.txt" "^security uhttpd_max_requests 16 redirect_https 1 home /www-ex4 rpcd_logins 0" "v8 inside: 16 requests at once (not 3: the web review's nit), port 80 redirects, the interface's own document root, NO rpcd login (no default password)"
+	has "$W/disklog.txt" "security: root password field locked (\*), web interface on 443, port 80 redirects, no web login until claimed" "v8 inside: uci-defaults' note in the disk log"
+	WANT="22 80 443"
+	else
 	has "$W/disklog.txt" "^security uhttpd listen_http 127.0.0.1:80 listen_https none ubus_prefix none" "v7 inside: uhttpd's settings: 127.0.0.1:80 only, no HTTPS listener, no /ubus"
 	has "$W/disklog.txt" "security: root password field locked (\*), web server on 127.0.0.1:80 only, no /ubus" "v7 inside: uci-defaults' note in the disk log"
+	WANT="22"
+	fi
+	[ $DNSM = 1 ] && WANT="$WANT 53"
 	TL=$(grep -a "^security tcp_lan_ports" "$W/disklog.txt" | tail -1)
 	echo "   $TL"; grep -a "^security \(udp_lan_ports\|tcp_listen_all\|udp_bound_all\)" "$W/disklog.txt" | tail -3 | sed 's/^/   /'
-	echo "$TL" | awk '/^security tcp_lan_ports/ { for (i = 3; i <= NF; i++) if ($i != "22" && $i != "53" && $i != "none") bad = bad " " $i; exit (bad == "" ? 0 : 1) }' \
-	 && [ -n "$TL" ] && ok "v7 inside: no TCP port but 22 (dropbear) and 53 (dnsmasq) is bound to a non-loopback address" || no "v7 inside: TCP ports on a non-loopback address: '$TL'"
+	GOT=$(echo "$TL" | awk '/^security tcp_lan_ports/ { for (i = 3; i <= NF; i++) if ($i != "none") print $i }' | sort -n | uniq | tr '\n' ' ' | sed 's/ $//')
+	WS=$(echo $WANT | tr ' ' '\n' | sort -n | tr '\n' ' ' | sed 's/ $//')
+	[ -n "$TL" ] && [ "$GOT" = "$WS" ] && ok "v8 inside: the TCP ports on a non-loopback address are exactly: $WS (22 = dropbear$([ $WEBUI = 1 ] && echo ', 80 = the redirect, 443 = the interface')$([ $DNSM = 1 ] && echo ', 53 = dnsmasq'))" || no "v8 inside: TCP ports on a non-loopback address: '$GOT', want exactly '$WS'"
 	;;
 silent)
 	[ $SELF = 1 ] && ok "the guest REBOOTED by itself after $RAN s (qemu -no-reboot exits on a guest reset)" || no "the guest did not reboot in $SECS s"
