@@ -1,0 +1,94 @@
+# build/v8/diffconfig: the OpenWrt 25.12.6 .config for the EX4 v8 image (= v7's + the web interface's TLS pieces), as a diff against defaults
+# (expanded by `make defconfig`). Target: kirkwood/generic, one device (iom_ix4-200d: its initramfs zImage is the
+# kernel we keep; the EX4's own device tree is appended afterwards, exactly as build/build.sh does for v6).
+CONFIG_TARGET_kirkwood=y
+CONFIG_TARGET_kirkwood_generic=y
+CONFIG_TARGET_kirkwood_generic_DEVICE_iom_ix4-200d=y
+# a RAM trial: the kernel carries its rootfs; xz inside the kernel keeps the decompressor's peak below 48 MiB
+CONFIG_TARGET_ROOTFS_INITRAMFS=y
+CONFIG_TARGET_INITRAMFS_COMPRESSION_XZ=y
+# CONFIG_TARGET_ROOTFS_SQUASHFS is not set
+# CONFIG_TARGET_ROOTFS_UBIFS is not set
+# CONFIG_TARGET_ROOTFS_EXT4FS is not set
+# CONFIG_TARGET_ROOTFS_JFFS2 is not set
+# CONFIG_TARGET_ROOTFS_TARGZ is not set
+# no image builder / SDK / debug collections (the buildbot's extras)
+# CONFIG_IB is not set
+# CONFIG_SDK is not set
+# CONFIG_MAKE_TOOLCHAIN is not set
+# CONFIG_COLLECT_KERNEL_DEBUG is not set
+# CONFIG_KERNEL_KALLSYMS is not set
+CONFIG_KERNEL_BUILD_DOMAIN="buildhost"
+CONFIG_KERNEL_BUILD_USER="builder"
+CONFIG_VERSIONOPT=y
+CONFIG_VERSION_DIST="OpenWrt"
+CONFIG_VERSION_NUMBER="25.12.6-ex4v8"
+CONFIG_VERSION_REPO="https://downloads.openwrt.org/releases/25.12.6"
+CONFIG_VERSION_FILENAMES=y
+# ---- a NAS on a home LAN, not a router: no DHCP/DNS server, no firewall, no PPP, no U-Boot env writer ----
+# CONFIG_PACKAGE_dnsmasq is not set
+# CONFIG_PACKAGE_firewall4 is not set
+# CONFIG_PACKAGE_nftables is not set
+# CONFIG_PACKAGE_kmod-nft-offload is not set
+# CONFIG_PACKAGE_odhcpd-ipv6only is not set
+# CONFIG_PACKAGE_ppp is not set
+# CONFIG_PACKAGE_ppp-mod-pppoe is not set
+# CONFIG_PACKAGE_uboot-envtools is not set
+# CONFIG_PACKAGE_block-mount is not set
+# the ix4-200d's own board parts (absent on the EX4)
+# CONFIG_PACKAGE_kmod-gpio-nxp-74hc164 is not set
+# CONFIG_PACKAGE_kmod-hwmon-adt7475 is not set
+# CONFIG_PACKAGE_kmod-mvsdio is not set
+# CONFIG_PACKAGE_kmod-spi-gpio is not set
+# CONFIG_PACKAGE_kmod-rtc-mv is not set
+# CONFIG_PACKAGE_kmod-gpio-button-hotplug is not set
+# CONFIG_PACKAGE_kmod-ata-ahci is not set
+# ---- the EX4's own hardware ----
+CONFIG_PACKAGE_kmod-ata-marvell-sata=y
+CONFIG_PACKAGE_kmod-usb3=y
+CONFIG_PACKAGE_kmod-fs-ext4=y
+# ---- THE NAMED LIST (Kurt, Nov 17 2026 13:06 "go for it") ----
+CONFIG_PACKAGE_mdadm=y
+CONFIG_PACKAGE_e2fsprogs=y
+CONFIG_PACKAGE_smartmontools=y
+CONFIG_PACKAGE_smartd=y
+CONFIG_PACKAGE_samba4-server=y
+CONFIG_PACKAGE_ksmbd-server=y
+CONFIG_PACKAGE_kmod-fs-ksmbd=y
+CONFIG_PACKAGE_nfs-kernel-server=y
+CONFIG_PACKAGE_kmod-fs-nfsd=y
+CONFIG_PACKAGE_wsdd2=y
+CONFIG_PACKAGE_avahi-nodbus-daemon=y
+CONFIG_PACKAGE_msmtp=y
+CONFIG_PACKAGE_kmod-bonding=y
+CONFIG_PACKAGE_proto-bonding=y
+CONFIG_PACKAGE_rsync=y
+CONFIG_PACKAGE_kmod-usb-storage=y
+CONFIG_PACKAGE_kmod-usb-storage-uas=y
+CONFIG_PACKAGE_kmod-fs-vfat=y
+CONFIG_PACKAGE_kmod-fs-exfat=y
+CONFIG_PACKAGE_rpcd=y
+CONFIG_PACKAGE_rpcd-mod-ucode=y
+# ---- the web door (v8: the web interface rides in the trial; an overlay built without --webui binds it to loopback) ----
+CONFIG_PACKAGE_uhttpd=y
+CONFIG_PACKAGE_uhttpd-mod-ubus=y
+# v8: HTTPS needs uhttpd's TLS library and a certificate maker (v7's image had neither); ex4.uc's ucode modules, by name
+CONFIG_PACKAGE_libustream-mbedtls=y
+CONFIG_PACKAGE_px5g-mbedtls=y
+CONFIG_PACKAGE_ucode-mod-fs=y
+CONFIG_PACKAGE_ucode-mod-uci=y
+CONFIG_PACKAGE_ucode-mod-ubus=y
+CONFIG_PACKAGE_ucode-mod-uloop=y
+# samba: Time Machine (vfs_fruit), recycle bin, streams, quota reporting; no NetBIOS/SMB1 (SERVING N6); mDNS by static
+# avahi service files (the daemon is the no-dbus build, so samba's avahi client link is off)
+CONFIG_SAMBA4_SERVER_VFS=y
+CONFIG_SAMBA4_SERVER_QUOTAS=y
+CONFIG_SAMBA4_SERVER_WSDD2=y
+# CONFIG_SAMBA4_SERVER_NETBIOS is not set
+# CONFIG_SAMBA4_SERVER_AVAHI is not set
+# CONFIG_SAMBA4_SERVER_VFSX is not set
+# CONFIG_SAMBA4_SERVER_AD_DC is not set
+# CONFIG_PACKAGE_avahi-dbus-daemon is not set
+# busybox: + blockdev (ex4-md-ro sets every md1 member read-only in the kernel before mdadm sees it)
+CONFIG_BUSYBOX_CUSTOM=y
+CONFIG_BUSYBOX_CONFIG_BLOCKDEV=y
