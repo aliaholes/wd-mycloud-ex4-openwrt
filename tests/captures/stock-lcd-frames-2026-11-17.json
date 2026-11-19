@@ -1,0 +1,2018 @@
+{
+ "what": "WD up_send_ctl (firmware 2.12.127, md5 1bd9c12b39a19ee6c6e293e728a8261f) + up_send_daemon + up_read_daemon under qemu-arm on a pty, the build box $BUILD/v7-design/panel/; fake micro ACKs (fa3000000000fb) every frame ending in FB. Frames only: no WD text or files.",
+ "harness": "bash $BUILD/v7-design/panel/cap.sh <capNN> --cmd '<up_send_ctl args>' ... (cap.sh = run_emu.sh's emu_capture.py + frame-aware ACK + shlex args: cap2.py)",
+ "runs": [
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysName EX4TEST",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0401000745583454455354fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysIP1 192.168.1.50",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0402010802030100080a000cfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysIP2 10.0.0.2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040202080200000000000a00fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysIP1Dis",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0402040000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysIP2Dis",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0402080000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysIPBondSet",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0402100800fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl SysIPBondClean",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0402200000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl FirmwareVer 2.12.127",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04080008322e31322e313237fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl LCDSleepMode 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0482000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl LCDSleepMode 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0482010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl LCDSleepMode 5",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0482050000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap02",
+   "cmd": "up_send_ctl LCDSleepMode 6",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0482060000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl HDDExist",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl VolStatus",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl VolRaidState",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404020000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl VolUsedPct",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404030000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl VolClean",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404040000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl MFGLCD",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl LCDSleepMode",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl FanSpeed",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl HDHealthy",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl CapacityFree",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl ErrStatus",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl DeviceShutdownMsg",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303040100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl DeviceRstMsg",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303050100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl Standby",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl OledTest",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl FirmwareVer",
+   "rc": -11,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "crashed (qemu SIGSEGV)"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl temperature",
+   "rc": -11,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "crashed (qemu SIGSEGV)"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl usbExist",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl backupStatus",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl backupDirection",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl HddAccessLed",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl MFGMode",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap03",
+   "cmd": "up_send_ctl SysName",
+   "rc": -11,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "crashed (qemu SIGSEGV)"
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HDDExist 1111",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040301010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HDDExist 1110",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040300010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HDDExist 0101 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040311000100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HDDExist 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040300000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolStatus 1 1 0 37 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolStatus 1 1 1 50 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolStatus 1 1 2 0 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolStatus 2 2 3 99 0",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolStatus 1 6 100 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04040106313631303031fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolRaidState 1 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040402040100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolUsedPct 1 37",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040403040125fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl VolUsedPct 1 2 3",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl FanSpeed 1500rpm",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa048300073135303072706dfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl FanSpeed 2040",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0483000432303430fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HDHealthy Good",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04840004476f6f64fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HDHealthy \"No Drives\"",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa048400094e6f20447269766573fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl CapacityFree \"10.9 TB\"",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0485000731302e39205442fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl CapacityFree \"10.920 TB\"",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0485000931302e393230205442fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl temperature 40 45",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0409000028002d00fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl usbExist 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040a010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl usbExist 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040a000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl backupStatus 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040b010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl backupDirection 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040c010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl backupDirection 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040c000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl Standby 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0406010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl Standby 3",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0406080000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl Standby 6",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0406000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl OledTest 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0407000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl OledTest 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0407010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl OledTest 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0407020000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl MFGLCD 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0472000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl MFGLCD 1 HELLOWORLD",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0472010a48454c4c4f574f524c44fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl MFGLCD 2 \"Second line 1234567890\"",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl MFGMode 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0307010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl MFGMode 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0307000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl HddAccessLed 1 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0306010001fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl PwrLedRed 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0310010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap04",
+   "cmd": "up_send_ctl PwrLedRed 11",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa03100b0000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl VolStatus 1 0 37 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040401053130333731fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl VolStatus 1 2 100 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04040106313231303031fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl VolStatus 2 1 5 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404010432313531fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl VolStatus 1 0 0 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404010431303030fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl VolClean",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404040000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl MFGLCD 2 Second",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa047202065365636f6e64fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghij",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl SysName ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040100244142434445464748494a4b4c4d4e4f505152535455565758595a30313233343536373839fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl HDHealthy ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa048400244142434445464748494a4b4c4d4e4f505152535455565758595a30313233343536373839fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 1 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551901fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 1 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551900fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 3 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551e010132fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 8 1 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 10 1 1 50",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 11 1 1 01:02:03",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 22 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 46 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl ErrStatus 29 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa550901fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl SysName Kurt-EX4",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040100084b7572742d455834fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap05",
+   "cmd": "up_send_ctl LCDSleepMode 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0482020000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOP",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa047201104142434445464748494a4b4c4d4e4f50fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQ",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRST",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTU",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTUVWX",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTUVWXY",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTUVWXYZ012345",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcd",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 a b",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "usage text printed, nothing sent"
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl MFGLCD 1 \u00dc",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04720102c39cfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap06",
+   "cmd": "up_send_ctl FirmwareVer ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz0123456789",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040800484142434445464748494a4b4c4d4e4f505152535455565758595a303132333435363738396162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536373839fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 0 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 0 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 1 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551901fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 1 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551901fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 2 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551a01fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 2 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551a01fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 3 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 3 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551e010132fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 4 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 4 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551b010132fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 5 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551f01fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 5 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551f01fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 6 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553401fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 6 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553401fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 7 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 7 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 8 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 8 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 9 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 9 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 10 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 10 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 11 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 11 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 12 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 12 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 13 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 13 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 14 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 14 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 15 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 15 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 16 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 16 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 17 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 17 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 18 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 18 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 19 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 19 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 20 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 20 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 21 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 21 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 22 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 22 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 23 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 23 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 24 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 24 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 25 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 25 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 26 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 26 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 27 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 27 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 28 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 28 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 29 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa550901fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 29 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa550901fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 30 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 30 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 31 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551501fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 31 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551501fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 32 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 32 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 33 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 33 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 34 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 34 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 35 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 35 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 36 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553301fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 36 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553301fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 37 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 37 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 38 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 38 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 39 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 39 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 40 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 40 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 41 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 41 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 42 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553001fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 42 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553001fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 43 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 43 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 44 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553201fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 44 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa553201fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 45 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 45 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 46 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 46 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 47 1",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 47 1 2",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 10 1 1 50",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 10 1 1 50 01:02:03",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": ""
+  },
+  {
+   "capture": "cap08",
+   "cmd": "up_send_ctl ErrStatus 3 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa551e00fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolUsedPct 2 99",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040403040263fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolUsedPct 1 100",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040403040164fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolUsedPct 1 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040403040100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolRaidState 2 5",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040402040205fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolRaidState 1 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040402040101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolRaidState a 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040402040000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolStatus 1 1 42 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040401053131343231fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolStatus 1 2 0 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404010431323031fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl VolStatus 1 3 0 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0404010431333031fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl HDDExist 1111 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040301010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl HDDExist 1011 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040301010000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl HDDExist 0111 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040301010101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl HDDExist 1110 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040300010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl HDDExist 1111 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa040311010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl temperature 0 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0409000000000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl temperature 255 300",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04090000ff002c01fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl FanSpeed 0rpm",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa048300043072706dfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl CapacityFree \"9.2 TB\"",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa04850006392e32205442fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl MCUVer",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0305000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "cap09",
+   "cmd": "up_send_ctl DeviceReady",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0301000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  }
+ ]
+}
