@@ -1,6 +1,7 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# ex4-watch.sh : the LAN-side witness for an EX4 RAM trial. Runs on YOUR computer (the one that holds the trial's ssh
+# ex4-watch.sh : the LAN-side witness for an EX4 RAM trial. (v8: once the self-test is read it also says the web
+# interface's lines of its "-- security" block and the one LCD test frame's result.) Runs on YOUR computer (the one that holds the trial's ssh
 # key and sits on the same LAN), never on the EX4. It only looks: ping sweep, the neighbour table, the ssh banner on
 # port 22, and (only on a host that looks like the trial) a key-only ssh that reads files. It changes nothing on the
 # trial system (it never creates /tmp/ex4-stay) and nothing on the LAN. Needs: bash, fping, nc, ip, ssh.
@@ -103,7 +104,8 @@ watch)
 				tssh "$ip" 'logread' > "$OUT/trial-logread.txt"
 				tssh "$ip" 'dmesg' > "$OUT/trial-dmesg.txt"
 				DETAIL="kernel=$(awk 'NR == 1 { print $3 }' "$OUT/trial-uname.txt") selftest_bytes=$(wc -c < "$OUT/trial-selftest.txt") dmesg_lines=$(wc -l < "$OUT/trial-dmesg.txt")"
-				grep -E '^security (root_password_field|uhttpd|tcp_lan_ports|udp_lan_ports) ' "$OUT/trial-selftest.txt" 2>/dev/null | while read -r SL; do say "self-test (v7): $SL"; done
+				grep -E '^security (root_password_field|uhttpd|tcp_lan_ports|udp_lan_ports|webui|http80|ubus_anon_session_login|ubus_anon_ex4_status|uhttpd_max_requests) ' "$OUT/trial-selftest.txt" 2>/dev/null | cut -c1-200 | while read -r SL; do say "self-test (v7/v8): $SL"; done
+				grep -E '^send-test: ' "$OUT/trial-selftest.txt" 2>/dev/null | tail -1 | while read -r SL; do say "self-test (v8 panel): $SL"; done
 			fi
 			if [ "$TOKEN" = yes ]; then
 				FS=$(tssh "$ip" 'cat /tmp/ex4fan.status' | head -1)
