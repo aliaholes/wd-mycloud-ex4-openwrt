@@ -1,0 +1,142 @@
+--- a/build/mkoverlay.py	2026-11-17 15:33:39.275231825 -0800
++++ b/build/mkoverlay.py	2026-11-17 15:34:22.871402104 -0800
+@@ -52,6 +52,13 @@
+      sits (run 7 read the wrong place: the device tree had WD's last three partitions in address order, WD has
+      them in another), which driver holds each PHY and what the chips themselves answer (id, register page), and
+      the carrier-change counters of both ports taken twice, 10 s apart (the link flap of runs 5 to 7, as a rate).
++ 13. (v8, with --rwbench FILE; needs --kmods) THE READ-WRITE BENCH (box/ex4-rwbench.sh, docs/RWBENCH.md) rides in as
++     /usr/sbin/ex4-rwbench, and every way this trial reboots by itself learns about it: the S99 auto-return and the
++     S03 deadman call ex4_rw_wait before their reboot (while /tmp/ex4-rw-active exists: run `ex4-rwbench stop
++     --for-reboot`, at most 180 s a try, and reboot only when it says SAFE; else a note and again in 60 s: a box that
++     stays up beats a reboot with md1 read-write), and /etc/rc.d/K01ex4-rwstop runs the same stop first on any
++     procd shutdown (a hand `reboot`). ex4fan's fail-safe carries its own copy (userland/ex4fan.c, RWBENCH patch).
++     Without --rwbench nothing here changes, and ex4-rwbench refuses to switch md1 read-write.
+  12. (v7, ALWAYS: the security fix of Nov 17 2026) up to v6 only ssh was key-only. The image's web server (uhttpd, with
+      LuCI and the /ubus door to rpcd) listened on every address, ports 80 and 443, and root's password field was
+      EMPTY, which rpcd's login (and so LuCI's) takes as "no password needed": anyone on the LAN could become root
+@@ -152,10 +159,10 @@
+ INITD = r'''#!/bin/sh /etc/rc.common
+ # ex4-trial: run the self-test once, then go back to the stock system by rebooting unless someone says stay.
+ START=99
+-boot() {
++@RWWAIT@boot() {
+ @N1@	( sleep 20; /usr/sbin/ex4-selftest
+ @N2@	  sleep $((@RETURN_MIN@ * 60))
+-	  [ -e /tmp/ex4-stay ] || { logger -t ex4-trial "no /tmp/ex4-stay after @RETURN_MIN@ min: rebooting to stock"; @N3@reboot; } ) &
++	  [ -e /tmp/ex4-stay ] || { @RWCALL@logger -t ex4-trial "no /tmp/ex4-stay after @RETURN_MIN@ min: rebooting to stock"; @N3@reboot; } ) &
+ }
+ '''
+ INITD_N1 = '\t/usr/sbin/ex4log note "rc.d S99 reached: every init script has run"\n'
+@@ -261,10 +268,45 @@
+ # exists, it reboots (through U-Boot into the untouched stock system). In a boot that goes well S99's own timer fires
+ # two minutes earlier and this one never does anything.
+ START=03
+-boot() {
++@RWWAIT@boot() {
+ 	/usr/sbin/ex4log note "rc.d S03: deadman armed: reboot to stock in @RETURN_MIN@ + 2 min unless /tmp/ex4-stay exists (does not need S99)"
+ 	( sleep $(((@RETURN_MIN@ + 2) * 60))
+-	  [ -e /tmp/ex4-stay ] || { /usr/sbin/ex4log note "deadman: @RETURN_MIN@ + 2 min, no /tmp/ex4-stay: rebooting to stock now"; sleep 4; reboot; sleep 60; reboot -f; } ) &
++	  [ -e /tmp/ex4-stay ] || { @RWCALL@/usr/sbin/ex4log note "deadman: @RETURN_MIN@ + 2 min, no /tmp/ex4-stay: rebooting to stock now"; sleep 4; reboot; sleep 60; @RWCALL@reboot -f; } ) &
++}
++'''
++
++# v8 (--rwbench): the one rule for every reboot this overlay makes by itself. Defined in both init scripts.
++RWWAIT = r'''# v8 (--rwbench): never reboot while the read-write bench may hold md1 read-write. While /tmp/ex4-rw-active exists,
++# run its clean stop (at most 180 s a try) and go on only when it says SAFE (rc 0, or 3 = stopped but look at the
++# array) AND the marker is gone; else a note, and again in 60 s. A box that stays up beats a reboot with md1 rw.
++ex4_rw_wait() {
++	[ -e /tmp/ex4-rw-active ] || return 0
++	n=0
++	while [ -e /tmp/ex4-rw-active ]; do
++		n=$((n + 1))
++		/usr/sbin/ex4-rwbench stop --for-reboot > /tmp/ex4-rwstop.$n.txt 2>&1 &
++		p=$!; i=0
++		while kill -0 $p 2>/dev/null && [ $i -lt 180 ]; do sleep 1; i=$((i + 1)); done
++		if kill -0 $p 2>/dev/null; then rc=124; else wait $p; rc=$?; fi
++		if [ $rc = 0 ] || [ $rc = 3 ]; then [ -e /tmp/ex4-rw-active ] || return 0; fi
++		/usr/sbin/ex4log note "reboot path: the rw bench's clean stop said rc $rc (try $n): NOT rebooting with md1 read-write; again in 60 s" 2>/dev/null
++		logger -t ex4-trial "rw bench clean stop rc $rc (try $n): not rebooting; again in 60 s"
++		sleep 60
++	done
++	return 0
++}
++'''
++INITD_RWSTOP = r'''#!/bin/sh /etc/rc.common
++# ex4-rwstop (v8, --rwbench): K01 = the first thing any procd shutdown runs (a hand `reboot` too). If the read-write
++# bench is up, its clean stop runs before anything else stops. procd cannot be vetoed from here, so the timers above
++# do the real waiting; this covers the reboot someone types.
++STOP=01
++stop() {
++	n=0
++	while [ -e /tmp/ex4-rw-active ] && [ $n -lt 3 ]; do
++		/usr/sbin/ex4-rwbench stop --for-reboot > /tmp/ex4-rwstop.k01.$n.txt 2>&1; n=$((n + 1))
++	done
++	return 0
+ }
+ '''
+ 
+@@ -408,6 +450,7 @@
+     ap.add_argument('--ex4fan', help='static ARM ex4fan binary: adds the fan daemon (v4); needs --ex4log')
+     ap.add_argument('--ex4mac', action='store_true', help="v5: the unit's own two MAC addresses on eth0 / eth1, the first one on br-lan; needs --ex4fan")
+     ap.add_argument('--ex4phy', help='v6: static ARM ex4phy binary (reads PHY registers, writes none) + the v6 self-test blocks; needs --ex4mac')
++    ap.add_argument('--rwbench', help='v8: box/ex4-rwbench.sh: the read-write bench + the clean stop on every reboot path; needs --kmods')
+     ap.add_argument('--kmods', help='v5: the outdir of kmod_pick.py (lib/modules/<ver>/*.ko + etc/modules.d/*): rides in at the same paths; needs --ex4fan')
+     ap.add_argument('--webui', help="v8: the repo's webui/ folder after `python3 webui/build.py`: the web interface rides in (HTTPS 443 on the LAN, port 80 redirects, no login until claimed)")
+     a = ap.parse_args()
+@@ -430,6 +473,15 @@
+         sys.exit("REFUSED: --ex4fan needs --ex4log (the fan daemon's fail-safe reasons go to the black box)")
+     if (a.ex4mac or a.kmods) and not a.ex4fan:
+         sys.exit("REFUSED: --ex4mac / --kmods are the v5 additions on top of the v4 overlay: they need --ex4fan")
++    if a.rwbench and not a.kmods:
++        sys.exit("REFUSED: --rwbench needs --kmods (the deadman is one of the reboot paths it must patch)")
++    rwb = b''
++    if a.rwbench:
++        rwb = open(a.rwbench, 'rb').read()
++        if not rwb.startswith(b'#!/bin/sh\n') or b'ex4-rwbench' not in rwb[:400] or b'stop_all()' not in rwb:
++            sys.exit("REFUSED: --rwbench is not box/ex4-rwbench.sh")
++    rwwait = RWWAIT if a.rwbench else ''
++    rwcall = 'ex4_rw_wait; ' if a.rwbench else ''
+     if a.ex4phy and not a.ex4mac:
+         sys.exit("REFUSED: --ex4phy is the v6 addition on top of the v5 overlay: it needs --ex4mac")
+     if a.ex4log or a.preinit_conf:
+@@ -476,7 +528,7 @@
+     files += [
+         ('etc/board.d/02_network', net.encode(), 0o100755),
+         ('etc/uci-defaults/99-ex4-trial', UCI_DEFAULTS.replace('@KEYONLY@', keyonly).replace('@WEBBLOCK@', WEB_WEBUI if a.webui else WEB_LOOPBACK).replace('@MAC@', UCI_MAC if a.ex4mac else '').replace('@N4@', n4).encode(), 0o100755),
+-        ('etc/init.d/ex4-trial', INITD.replace('@RETURN_MIN@', str(a.return_min)).replace('@N1@', n1).replace('@N2@', n2).replace('@N3@', n3).encode(), 0o100755),
++        ('etc/init.d/ex4-trial', INITD.replace('@RWWAIT@', rwwait).replace('@RWCALL@', rwcall).replace('@RETURN_MIN@', str(a.return_min)).replace('@N1@', n1).replace('@N2@', n2).replace('@N3@', n3).encode(), 0o100755),
+         ('etc/rc.d/S99ex4-trial', b'../init.d/ex4-trial', 0o120777),
+         ('usr/sbin/ex4-selftest', SELFTEST.replace('@SECHDR@', SECHDR_WEBUI if a.webui else SECHDR_LOOPBACK).replace('@WEBPROBE@', WEBPROBE if a.webui else 'echo "security webui no"\n').replace('@FAN@', SELFTEST_FAN if a.ex4fan else '').replace('@V5@', (SELFTEST_V5 if (a.ex4mac or a.kmods) else '') + (SELFTEST_V6 if a.ex4phy else '')).encode(), 0o100755),
+         ('etc/banner.ex4', BANNER.encode(), 0o100644),
+@@ -517,7 +569,7 @@
+                 sys.exit(f"REFUSED: {rel} is not a relocatable 32-bit little-endian ARM object (a kernel module)")
+             files.append((rel, body, 0o100644)); nk += 1
+         files += [
+-            ('etc/init.d/ex4-deadman', INITD_DEADMAN.replace('@RETURN_MIN@', str(a.return_min)).encode(), 0o100755),
++            ('etc/init.d/ex4-deadman', INITD_DEADMAN.replace('@RWWAIT@', rwwait).replace('@RWCALL@', rwcall).replace('@RETURN_MIN@', str(a.return_min)).encode(), 0o100755),
+             ('etc/rc.d/S03ex4-deadman', b'../init.d/ex4-deadman', 0o120777),
+         ]
+     if a.ex4phy:        # v6: after everything v5 had, so v5's entries keep their order and inode numbers
+@@ -547,6 +599,12 @@
+             files.append((dst, open(os.path.join(a.webui, src), 'rb').read(), 0o100000 | int(mode, 8))); have.add(dst); nw += 1
+         files.append(('etc/ex4/trial', ('return_min=%d\n' % a.return_min).encode(), 0o100644))   # the page's trial strip and clock
+     files.append(('etc/ex4/overlay-stamp', ('mkoverlay v8 secfix=1 keyonly=1 webui=%d\n' % (1 if a.webui else 0)).encode(), 0o100644))
++    if a.rwbench:       # v8: after everything v6 had, so v6's entries keep their order and inode numbers
++        files += [
++            ('usr/sbin/ex4-rwbench', rwb, 0o100755),
++            ('etc/init.d/ex4-rwstop', INITD_RWSTOP.encode(), 0o100755),
++            ('etc/rc.d/K01ex4-rwstop', b'../init.d/ex4-rwstop', 0o120777),
++        ]
+     out = b''.join(newc(n, d, m, 1000 + i) for i, (n, d, m) in enumerate(files))
+     out += newc('TRAILER!!!', b'', 0, 0)
+     out += b'\0' * (-len(out) % 512)
+@@ -560,7 +618,8 @@
+           + (", fan daemon: yes (preinit hook + rc.d S02)" if a.ex4fan else "")
+           + (", MAC hook: yes (preinit 07_ex4_set_mac + br-lan pinned in uci-defaults)" if a.ex4mac else "")
+           + (f", kernel modules + lists from --kmods: {nk} files, deadman at S03 ({a.return_min} + 2 min)" if a.kmods else "")
+-          + (", ex4phy + the v6 self-test blocks: yes" if a.ex4phy else ""))
++          + (", ex4phy + the v6 self-test blocks: yes" if a.ex4phy else "")
++          + (", rw bench: /usr/sbin/ex4-rwbench + the clean stop before every reboot (S99, S03, K01)" if a.rwbench else ""))
+ 
+ 
+ main()
