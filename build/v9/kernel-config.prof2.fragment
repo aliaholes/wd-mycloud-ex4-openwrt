@@ -1,0 +1,15 @@
+# build/v9/kernel-config.prof2.fragment : the k-prof2 PROFILE TWIN (NEVER shipped, bench only): the hits-only twin's lines
+# (kernel-config.prof.fragment, v10prof) + FUNCTION_GRAPH_TRACER, so the function profiler records TIME per function
+# (kernel/trace/ftrace.c: with the graph tracer, function_profile_stats carry the time between entry and return; without it,
+# hit counts only). On the DEFAULT config, so its numbers explain the default kernel. Read by `twin-image --twin prof2`.
+# Line kinds: see kernel-config.uaccess.fragment. Not KSTRICT: FTRACE selects its own pile (TRACING, RING_BUFFER, ...), as v10prof.
+# Still nothing else: no PERF_EVENTS (twin-image refuses it), no syscall / irqsoff / sched tracers. ARM selects
+# HAVE_FUNCTION_GRAPH_TRACER unconditionally (N/arch/arm/Kconfig:109), so ARMv5 can take it.
+OWRT CONFIG_KERNEL_KALLSYMS=y
+OWRT CONFIG_KERNEL_FTRACE=y
+OWRT CONFIG_KERNEL_FUNCTION_TRACER=y
+OWRT CONFIG_KERNEL_FUNCTION_GRAPH_TRACER=y
+OWRT CONFIG_KERNEL_DYNAMIC_FTRACE=y
+OWRT CONFIG_KERNEL_FUNCTION_PROFILER=y
+KWANT CONFIG_FUNCTION_GRAPH_TRACER=y
+KWANT CONFIG_FUNCTION_PROFILER=y
