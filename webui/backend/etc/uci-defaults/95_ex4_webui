@@ -1,0 +1,39 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# 95_ex4_webui : first boot. Turns the image's web server into the EX4 interface's, and nothing else.
+#   - no web login exists until somebody claims the box (no default password): every `config login` goes,
+#     root's first. rpcd's own unauthenticated.json was replaced by ours in the image (no session.login door).
+#   - uhttpd: HTTPS on 443 with our certificate, port 80 only redirects to it, the /ubus door on, LuCI's handlers off
+#     (its files, if the image has them, stay on disk but nothing serves them: the server's root is /www-ex4, our one page).
+#   - the watcher every 5 minutes (free space, SMART, alerts).
+# Idempotent; uci-defaults runs it once and removes it.
+# EX4_ROOT (tests only): a folder used as "/" (tests/webui/emu/emu.sh runs this very file on a fixture tree).
+R=${EX4_ROOT:-}
+uci() { if [ -n "$R" ]; then command uci -c "$R/etc/config" "$@"; else command uci "$@"; fi; }
+while uci -q delete rpcd.@login[0]; do :; done
+uci -q commit rpcd
+
+uci -q delete uhttpd.main.listen_http;  uci -q add_list uhttpd.main.listen_http='0.0.0.0:80';  uci -q add_list uhttpd.main.listen_http='[::]:80'
+uci -q delete uhttpd.main.listen_https; uci -q add_list uhttpd.main.listen_https='0.0.0.0:443'; uci -q add_list uhttpd.main.listen_https='[::]:443'
+uci -q set uhttpd.main.redirect_https='1'
+uci -q set uhttpd.main.ubus_prefix='/ubus'
+uci -q delete uhttpd.main.lua_prefix
+uci -q delete uhttpd.main.ucode_prefix
+uci -q set uhttpd.main.home='/www-ex4'
+uci -q set uhttpd.main.cgi_prefix='/cgi-none'
+uci -q set uhttpd.main.no_dirlists='1'
+# v8 (the web review's nit 3): OpenWrt's default of 3 requests at once let three slow clients anywhere on the LAN starve
+# the page. 16 requests at once (one poll is one small POST; the page never needs more than 2), 32 connections, and a
+# client that sends nothing for 15 s is dropped.
+uci -q set uhttpd.main.max_requests='16'
+uci -q set uhttpd.main.max_connections='32'
+uci -q set uhttpd.main.network_timeout='15'
+uci -q commit uhttpd
+
+# our certificate (names: the box's name and name.local; the address joins when the administrator renews it)
+[ -s "$R/etc/ex4/cert.info" ] || "$R/usr/libexec/ex4/ex4-apply" cert
+
+mkdir -p "$R/etc/crontabs"
+grep -q 'ex4-apply watch' "$R/etc/crontabs/root" 2>/dev/null || echo '*/5 * * * * /usr/libexec/ex4/ex4-apply watch' >> "$R/etc/crontabs/root"
+"$R/etc/init.d/cron" enable 2>/dev/null
+exit 0
