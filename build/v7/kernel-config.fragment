@@ -1,0 +1,27 @@
+# build/v7/kernel-config.fragment: merged into target/linux/kirkwood/config-6.12 (a line here replaces the same
+# symbol's line there). =y in the target config beats any kmod package's =m override (scripts/kconfig.pl 'm+').
+# THE XOR ENGINES (SERVING section 0.3): MV_XOR is a bool, so only our own kernel can have it.
+CONFIG_DMADEVICES=y
+CONFIG_DMA_ENGINE=y
+CONFIG_MV_XOR=y
+CONFIG_ASYNC_TX_DMA=y
+# CONFIG_DMATEST is not set
+# md, built in; NEVER assembles anything by itself (no 0.90 autodetect)
+CONFIG_MD=y
+CONFIG_BLK_DEV_MD=y
+# CONFIG_MD_AUTODETECT is not set
+CONFIG_MD_RAID1=y
+CONFIG_MD_RAID456=y
+# CONFIG_MD_LINEAR is not set
+# CONFIG_MD_RAID0 is not set
+# CONFIG_MD_RAID10 is not set
+# CONFIG_MD_CLUSTER is not set
+# CONFIG_MD_FAULTY is not set
+# CONFIG_MD_MULTIPATH is not set
+# CONFIG_BLK_DEV_DM is not set
+# ext4 quotas (his volume is mounted usrquota,grpquota)
+CONFIG_QUOTA=y
+CONFIG_QUOTACTL=y
+CONFIG_QFMT_V2=y
+# CONFIG_PRINT_QUOTA_WARNING is not set
+# CONFIG_QUOTA_NETLINK_INTERFACE is not set
