@@ -1,0 +1,112 @@
+/dev/loop18:
+          Magic : a92b4efc
+        Version : 1.0
+    Feature Map : 0x0
+     Array UUID : d95c85cb:02d22d31:623ffa70:7543243f
+           Name : buildbox:91  (local to host buildbox)
+  Creation Time : Tue Nov 17 15:27:17 2026
+     Raid Level : raid5
+   Raid Devices : 4
+
+ Avail Dev Size : 196576 sectors (95.98 MiB 100.65 MB)
+     Array Size : 294720 KiB (287.81 MiB 301.79 MB)
+  Used Dev Size : 196480 sectors (95.94 MiB 100.60 MB)
+   Super Offset : 196592 sectors
+   Unused Space : before=0 sectors, after=104 sectors
+          State : active
+    Device UUID : 154ec0ec:cdfcb369:2f1e743b:c2a10a29
+
+    Update Time : Tue Nov 17 15:27:26 2026
+  Bad Block Log : 512 entries available at offset -8 sectors
+       Checksum : ab9cbe8c - correct
+         Events : 2
+
+         Layout : left-symmetric
+     Chunk Size : 64K
+
+   Device Role : Active device 0
+   Array State : AAAA ('A' == active, '.' == missing, 'R' == replacing)
+/dev/loop19:
+          Magic : a92b4efc
+        Version : 1.0
+    Feature Map : 0x0
+     Array UUID : d95c85cb:02d22d31:623ffa70:7543243f
+           Name : buildbox:91  (local to host buildbox)
+  Creation Time : Tue Nov 17 15:27:17 2026
+     Raid Level : raid5
+   Raid Devices : 4
+
+ Avail Dev Size : 196576 sectors (95.98 MiB 100.65 MB)
+     Array Size : 294720 KiB (287.81 MiB 301.79 MB)
+  Used Dev Size : 196480 sectors (95.94 MiB 100.60 MB)
+   Super Offset : 196592 sectors
+   Unused Space : before=0 sectors, after=104 sectors
+          State : active
+    Device UUID : feb29204:206cad54:2fff3a73:98d2cf49
+
+    Update Time : Tue Nov 17 15:27:26 2026
+  Bad Block Log : 512 entries available at offset -8 sectors
+       Checksum : 6f4a49f - correct
+         Events : 2
+
+         Layout : left-symmetric
+     Chunk Size : 64K
+
+   Device Role : Active device 1
+   Array State : AAAA ('A' == active, '.' == missing, 'R' == replacing)
+/dev/loop20:
+          Magic : a92b4efc
+        Version : 1.0
+    Feature Map : 0x0
+     Array UUID : d95c85cb:02d22d31:623ffa70:7543243f
+           Name : buildbox:91  (local to host buildbox)
+  Creation Time : Tue Nov 17 15:27:17 2026
+     Raid Level : raid5
+   Raid Devices : 4
+
+ Avail Dev Size : 196576 sectors (95.98 MiB 100.65 MB)
+     Array Size : 294720 KiB (287.81 MiB 301.79 MB)
+  Used Dev Size : 196480 sectors (95.94 MiB 100.60 MB)
+   Super Offset : 196592 sectors
+   Unused Space : before=0 sectors, after=104 sectors
+          State : active
+    Device UUID : ac7c3445:98abed4e:9d53d859:63ea5ee5
+
+    Update Time : Tue Nov 17 15:27:26 2026
+  Bad Block Log : 512 entries available at offset -8 sectors
+       Checksum : c40319ff - correct
+         Events : 2
+
+         Layout : left-symmetric
+     Chunk Size : 64K
+
+   Device Role : Active device 2
+   Array State : AAAA ('A' == active, '.' == missing, 'R' == replacing)
+/dev/loop21:
+          Magic : a92b4efc
+        Version : 1.0
+    Feature Map : 0x0
+     Array UUID : d95c85cb:02d22d31:623ffa70:7543243f
+           Name : buildbox:91  (local to host buildbox)
+  Creation Time : Tue Nov 17 15:27:17 2026
+     Raid Level : raid5
+   Raid Devices : 4
+
+ Avail Dev Size : 196576 sectors (95.98 MiB 100.65 MB)
+     Array Size : 294720 KiB (287.81 MiB 301.79 MB)
+  Used Dev Size : 196480 sectors (95.94 MiB 100.60 MB)
+   Super Offset : 196592 sectors
+   Unused Space : before=0 sectors, after=104 sectors
+          State : active
+    Device UUID : bcd48df0:d69daf64:e71f7d37:8c8985f5
+
+    Update Time : Tue Nov 17 15:27:26 2026
+  Bad Block Log : 512 entries available at offset -8 sectors
+       Checksum : 72e9cfc2 - correct
+         Events : 2
+
+         Layout : left-symmetric
+     Chunk Size : 64K
+
+   Device Role : Active device 3
+   Array State : AAAA ('A' == active, '.' == missing, 'R' == replacing)
