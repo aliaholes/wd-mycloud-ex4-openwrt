@@ -1,0 +1,32 @@
+--- a/userland/ex4fan.c	2026-11-17 15:33:39.278510439 -0800
++++ b/userland/ex4fan.c	2026-11-17 15:34:22.872266733 -0800
+@@ -1509,12 +1509,29 @@
+ }
+ 
+ /* ---------- the supervisor: restarts a worker that died or hangs; does the reboot ---------- */
++/* v8 (RWBENCH, docs/RWBENCH.md): while /tmp/ex4-rw-active exists the read-write bench may hold md1 read-write.
++ * Its clean stop runs first, for at most 120 s (the fan is already at MAX). This is the ONE reboot path that goes
++ * on even when the stop did not say SAFE: a drive at 55 C or a fan that does not turn outranks a resync (md's own
++ * reboot notifier still marks the array clean after sync(); the ext4 journal replays on the next mount). */
++static void rw_stop_for_reboot(void)
++{
++	pid_t p; int st = -1, i;
++	if (access("/tmp/ex4-rw-active", F_OK) != 0) return;
++	kmsg("fail-safe: the rw bench is up (/tmp/ex4-rw-active): its clean stop first (at most 120 s)");
++	p = fork();
++	if (p == 0) { execl("/usr/sbin/ex4-rwbench", "ex4-rwbench", "stop", "--for-reboot", (char *)NULL); _exit(127); }
++	if (p < 0) { kmsg("fail-safe: fork for the rw clean stop failed: rebooting anyway"); return; }
++	for (i = 0; i < 120; i++) { if (waitpid(p, &st, WNOHANG) == p) break; nap(1); }
++	if (i == 120) { kill(p, SIGKILL); waitpid(p, &st, 0); kmsg("fail-safe: the rw clean stop did not finish in 120 s: rebooting anyway"); return; }
++	kmsg(WIFEXITED(st) && (WEXITSTATUS(st) == 0 || WEXITSTATUS(st) == 3) ? "fail-safe: the rw clean stop said SAFE" : "fail-safe: the rw clean stop did NOT say SAFE: rebooting anyway (thermal / fan fail-safe)");
++}
+ static void do_reboot(const char *why)
+ {
+ 	char b[300];
+ 	snprintf(b, sizeof b, "rebooting now: %s", why);
+ 	kmsg(b);
+ 	if (root) { snprintf(b, sizeof b, "REBOOT %s\n", why); append(p_reboot, b); exit(0); }
++	rw_stop_for_reboot();
+ 	sync();
+ 	reboot(RB_AUTOBOOT);
+ 	execl("/sbin/reboot", "reboot", "-f", (char *)NULL);
