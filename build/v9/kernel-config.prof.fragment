@@ -1,0 +1,16 @@
+# build/v9/kernel-config.prof.fragment : the PROFILE TWIN's kernel (PERF-DESIGN-v2 R2 "v10b-prof"; NEVER shipped, bench only).
+# Read by `build-v9.sh prof-image`. Two kinds of line (no KCFG line is needed today):
+#   OWRT CONFIG_KERNEL_X=y   goes into OpenWrt's top .config: OpenWrt's kernel-defaults.mk turns every CONFIG_KERNEL_X
+#                            into the kernel's CONFIG_X and OVERRIDES the target config with it (so FTRACE / KALLSYMS
+#                            must be set here; a target-config line for them would be overwritten by "is not set")
+#   KCFG CONFIG_X=y          goes into target/linux/kirkwood/config-6.12 (symbols OpenWrt has no CONFIG_KERNEL_ for)
+# Nothing else: no PERF_EVENTS, no perf package, no FUNCTION_GRAPH_TRACER, no syscall / irqsoff / sched tracers.
+# DEBUG_FS is already y in the v9 image (CONFIG_KERNEL_DEBUG_FS=y, OpenWrt's default); the stage checks it, not sets it.
+OWRT CONFIG_KERNEL_KALLSYMS=y
+OWRT CONFIG_KERNEL_FTRACE=y
+OWRT CONFIG_KERNEL_FUNCTION_TRACER=y
+OWRT CONFIG_KERNEL_DYNAMIC_FTRACE=y
+OWRT CONFIG_KERNEL_FUNCTION_PROFILER=y
+# NOT KALLSYMS_ALL: OpenWrt's include/kernel-defaults.mk:118 writes "# CONFIG_KALLSYMS_ALL is not set" after every config
+# source, so no config line can turn it on (try 1, Nov 17 21:37, proved it); turning it on means patching OpenWrt's build
+# system, which this twin does not do. The function profiler needs only text symbols, which KALLSYMS=y carries.
