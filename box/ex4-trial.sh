@@ -1,5 +1,11 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
+# ex4-trial.sh (v8 = v7 + THE WEB INTERFACE + THE ONE LCD TEST FRAME) : runs ON the WD My Cloud EX4, under its STOCK firmware.
+# v8 (Nov 17 2026): nothing changes in the launch (same CFG / SEGS shape, same kernel version as v7). `check` says
+# whether the bundle carries the web interface; `verdict`'s SECURITY line judges the web door by what rode in: without
+# the interface, 80 and 443 closed to the LAN (v7); with it, port 80 only redirecting to https, anonymous /ubus calls
+# refused, no web login yet, and no LAN TCP port but 22, 80 and 443. A new LCD TEST FRAME line reports the self-test's
+# one `ex4fan ctl send-test` (the host name, one try) and whether the micro ACKed it. Below: v7's own header.
 # ex4-trial.sh (v7 = v6 + THE SECURITY FIX) : runs ON the WD My Cloud EX4, under its STOCK firmware (busybox sh).
 # v7 (Nov 17 2026): nothing changes in the launch. The overlay (build/mkoverlay.py, item 12) now locks root's empty
 # password field ('*': no password matches, the ssh key still works) and keeps the web server on 127.0.0.1:80 with no
@@ -344,7 +350,10 @@ check)
 	say "v5 MACs: stock now: bond0 $(cat "$NICDIR/bond0/address" 2>/dev/null), egiga0 $(cat "$NICDIR/egiga0/address" 2>/dev/null), egiga1 $(cat "$NICDIR/egiga1/address" 2>/dev/null). The trial reads the unit's own two addresses from flash (read-only): eth0 = the first, eth1 = the second, br-lan (the one that asks for the lease) = the first."
 	say "v5 USB 3 / clock / panel: the overlay carries xhci-hcd + xhci-pci from the official OpenWrt image of the same release (KMODS.txt); ex4fan reads the front-panel micro's clock (it never sets it), sends WD's DeviceReady once, and logs the micro's button events without acting on them."
 	say "v6 flash / link: the device tree in kernel.bin carries WD's own flash layout (the last three partitions are not in address order; run 7 read the wrong place for the MAC addresses) and hands both Ethernet PHYs to the kernel's generic PHY driver (runs 5 to 7: the cabled port's link dropped once a second under the Marvell driver). Every flash partition is still read-only."
-	say "v7 security: the trial's web server answers on 127.0.0.1 only (no /ubus door, no HTTPS listener) and root's empty password field is locked ('*'): only your ssh key logs in. Bundles built before v7 left ports 80/443 open to the LAN with no root password: rebuild them."
+	say "v7 security: root's empty password field is locked ('*'): only your ssh key logs in. Bundles built before v7 left ports 80/443 open to the LAN with no root password: rebuild them."
+	if grep -q 'www-ex4/index.html' "$D/overlay.cpio" 2>/dev/null; then say "v8 web interface: this bundle carries it: HTTPS on port 443 of the trial's address (port 80 only redirects there). No web login exists until you claim the box: ssh in with your key and run ex4-claim for the six-digit code. Anonymous calls are refused, and nothing in it can write the array."
+	else say "v8 web interface: not in this bundle (the trial's web server answers on 127.0.0.1 only, no /ubus door, no HTTPS listener)."; fi
+	say "v8 panel: ex4fan leaves the front screen alone (LCD Tier A off) and the self-test sends ONE LCD frame (the host name, one try) to learn whether the micro ACKs WD's long frames; the verdict's LCD TEST FRAME line says what it did."
 	say "CHECK ONLY: nothing was loaded, nothing was changed."
 	;;
 load-dry)
@@ -693,13 +702,30 @@ verdict)
 			$1 == "security" && $2 == "uhttpd" { u = $0; sub(/^security uhttpd /, "", u) }
 			$1 == "security" && $2 == "tcp_lan_ports" { t = $0; sub(/^security tcp_lan_ports /, "", t) }
 			$1 == "security" && $2 == "udp_lan_ports" { d = $0; sub(/^security udp_lan_ports /, "", d) }
+			$1 == "security" && $2 == "webui" { w = $3 }
+			$1 == "security" && $2 == "http80" { h = $0; sub(/^security http80 /, "", h) }
+			$1 == "security" && $2 == "ubus_anon_session_login" { sl = (index($0, "Access denied") ? "refused" : "ANSWERED") }
+			$1 == "security" && $2 == "ubus_anon_ex4_status" { es = (index($0, "Access denied") ? "refused" : "ANSWERED") }
+			$1 == "security" && $2 == "ubus_anon_setup_state" { ss = (index($0, "\"claimed\":false") ? "unclaimed" : (index($0, "\"claimed\":true") ? "claimed" : "no answer")) }
+			$1 == "security" && $2 == "uhttpd_max_requests" { rl = $NF }
 			END { tt = " " t " "
 				print "PW " (pw == "" ? "?" : pw); print "UH " (u == "" ? "?" : u); print "TCP " (t == "" ? "?" : t); print "UDP " (d == "" ? "?" : d)
-				print "WEB " ((t != "" && !index(tt, " 80 ") && !index(tt, " 443 ")) ? "yes" : "NO") }' "$V5SRC" > "$L/sec-$STAMP.txt"
+				if (w == "yes") {
+					n = split(t, a, " "); only = (n > 0); h22 = 0; h443 = 0
+					for (i = 1; i <= n; i++) { if (a[i] == "22") h22 = 1; if (a[i] == "443") h443 = 1; if (a[i] != "22" && a[i] != "80" && a[i] != "443") only = 0 }
+					red = ((h ~ /^HTTP\/1\.[01] 30[1278] / && index(h, "location https://")) ? "yes" : "NO")
+					print "WEB the web interface rode in: port 80 only redirects to https: " red " · anonymous /ubus: session.login " (sl == "" ? "?" : sl) ", ex4.status " (es == "" ? "?" : es) " · setup state: " (ss == "" ? "?" : ss) " · web logins: " (rl == "" ? "?" : rl) " · LAN TCP ports 22 and 443 open and nothing but 22 / 80 / 443: " ((only && h22 && h443) ? "yes" : "NO")
+				} else print "WEB web ports 80 / 443 closed to the LAN: " ((t != "" && !index(tt, " 80 ") && !index(tt, " 443 ")) ? "yes" : "NO") }' "$V5SRC" > "$L/sec-$STAMP.txt"
 		secv() { awk -v k="$1" '$1 == k { sub(/^[A-Z0-9]+ ?/, ""); print; exit }' "$L/sec-$STAMP.txt"; }
-		vd "SECURITY: root's password field: $(secv PW) · uhttpd: $(secv UH) · TCP ports open on a LAN address: $(secv TCP) · UDP: $(secv UDP) · web ports 80 / 443 closed to the LAN: $(secv WEB)"
+		vd "SECURITY: root's password field: $(secv PW) · uhttpd: $(secv UH) · TCP ports open on a LAN address: $(secv TCP) · UDP: $(secv UDP) · $(secv WEB)"
 	elif [ -n "$V5SRC" ]; then
 		vd "SECURITY: the self-test on record has no security block (a bundle older than v7: its web server listened on the LAN and root had no password)"
+	fi
+	# ---- 5f. v8: the self-test's one LCD test frame ----
+	if [ -n "$V5SRC" ] && grep -q "^send-test: " "$V5SRC"; then
+		vd "LCD TEST FRAME: $(grep '^send-test: ' "$V5SRC" | tail -1 | sed 's/^send-test: //')"
+	elif [ -n "$V5SRC" ] && grep -q "^-- panel send-test" "$V5SRC"; then
+		vd "LCD TEST FRAME: the self-test asked for it; no answer from ex4fan is on record"
 	fi
 	# ---- 6. stock's start ledger + the clock ----
 	EXTRA=unknown
