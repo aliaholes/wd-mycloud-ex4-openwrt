@@ -1,0 +1,159 @@
+# build/v9/kernel-config.ud.fragment : the k-ud KERNEL TWIN (v9.8, Nov 18 2026; Kurt 12:45 "Go for whatever makes it awesome",
+# answering the morning report's call 2): uaccess (F3) + diet (F6) + nfsdtrack, ONE twin with its own token `ud`, never two
+# twins (build-v9.sh still refuses two). Run 17: uaccess = local write +19% / read +45% (user copies), diet = NFS write +7%
+# (in-kernel copies + cgroup charges); different costs, so they should add. Read by `build-v9.sh twin-image --twin ud`.
+# THE UNION RULE: every OWRT / KCFG / OMAY / KMAY line of kernel-config.uaccess / .diet / .nfsdtrack.fragment is here and
+# nothing else; KWANT = theirs, with diet's "# CONFIG_UACCESS_WITH_MEMCPY is not set" and nfsdtrack's two "is not set" lines
+# replaced by the ud kernel's own marks. tests/build/fragment-union-test.sh proves both (a drift between the files = a FAIL).
+# The arguments for each line live in the three source fragments; the copies below keep their comments.
+# Kconfig probe (olddefconfig on the diet probe's .config + the two other lines): only those two lines move
+# ($BUILD/v98/kcfg-probe/udondiet.config vs diet.config), so the KMAY list is diet's.
+KSTRICT yes
+#
+# ---- from kernel-config.uaccess.fragment (F3) ----
+KCFG CONFIG_UACCESS_WITH_MEMCPY=y
+# ---- from kernel-config.nfsdtrack.fragment ----
+KCFG CONFIG_NFSD_LEGACY_CLIENT_TRACKING=y
+# ---- from kernel-config.diet.fragment (F6 = K2 + K3 + K5), verbatim ----
+#
+# ---- K2: the cgroup pile (OpenWrt router defaults; the NAS sets no cgroup limit; CGROUPS + CGROUP_PIDS + CPUSETS + namespaces +
+#      seccomp stay, procd's jails use them) ----
+# memcg: a charge + uncharge + per-lruvec stats on every page-cache page (run 15's profile: ~8 calls per page written)
+OWRT # CONFIG_KERNEL_MEMCG is not set
+# blkcg: bio_associate_blkg + blk_cgroup_bio_start on every bio (341 member bios per MiB written); takes BLK_DEV_THROTTLING
+OWRT # CONFIG_KERNEL_BLK_CGROUP is not set
+# group scheduling (FAIR / CFS_BANDWIDTH / RT group): one core, no service groups; a hierarchy walk on every enqueue
+OWRT # CONFIG_KERNEL_CGROUP_SCHED is not set
+# cgroup-BPF: a hook on every socket send / receive; nothing on the box attaches a program
+OWRT # CONFIG_KERNEL_CGROUP_BPF is not set
+# the RDMA controller: the box has no RDMA device
+OWRT # CONFIG_KERNEL_CGROUP_RDMA is not set
+# cpuacct: per-cgroup CPU accounting on every tick and switch; nothing reads it
+OWRT # CONFIG_KERNEL_CGROUP_CPUACCT is not set
+# ---- K2: router-only network hooks ----
+# MPTCP: 24 hook sites in the TCP path; no client of ours speaks it (takes MPTCP_IPV6)
+OWRT # CONFIG_KERNEL_MPTCP is not set
+# IPv4 multicast routing (PIM): a router feature; the NAS routes nothing
+OWRT # CONFIG_KERNEL_IP_MROUTE is not set
+# IPv6 multicast routing: the same
+OWRT # CONFIG_KERNEL_IPV6_MROUTE is not set
+# IPv6 segment routing tunnels: a router feature (takes IPV6_SEG6_BPF, DST_CACHE)
+OWRT # CONFIG_KERNEL_IPV6_SEG6_LWTUNNEL is not set
+# L3 master devices (VRF): a router feature, a lookup hook on every route resolution
+OWRT # CONFIG_KERNEL_NET_L3_MASTER_DEV is not set
+#
+# ---- K3 ----
+# static keys as patched no-ops instead of load + compare + branch (page alloc, LRU, net rx/tx, scheduler); text stays RO
+# (patched under STRICT_KERNEL_RWX through a temporary mapping); OpenWrt's generic config turns it off (generic/config-6.12:3019)
+KCFG CONFIG_JUMP_LABEL=y
+#
+# ---- K5: the hot modules built in (image text in 1 MiB sections, no module-area TLB walks, no ARM_MODULE_PLTS `current` form;
+#      stock had them built in). The kmod packages become empty ("NOTICE: module ... is built-in"); modules.builtin tells
+#      kmodloader. The NFS server stack is K5's "SUNRPC / NFSD / LOCKD for whichever server ships": NFS (Kurt 23:55). ----
+# ext4: every file operation of the array's filesystem
+KCFG CONFIG_EXT4_FS=y
+# jbd2: ext4's journal (ext4=y needs it built in)
+KCFG CONFIG_JBD2=y
+# mbcache: ext4's xattr cache (ext4=y needs it built in)
+KCFG CONFIG_FS_MBCACHE=y
+# sata_mv: the four disks' controller, every member bio
+KCFG CONFIG_SATA_MV=y
+# nfsd: the server itself, every NFS request
+KCFG CONFIG_NFSD=y
+# lockd: NLM for v3 locking (nfsd=y selects it)
+KCFG CONFIG_LOCKD=y
+# sunrpc: the RPC transport under nfsd, every request and reply
+KCFG CONFIG_SUNRPC=y
+# grace: the grace-period manager nfsd and lockd share (nfsd=y selects it)
+KCFG CONFIG_GRACE_PERIOD=y
+#
+# ---- OMAY: top .config options that vanish because their parent above went off (they are only visible under it) ----
+OMAY CONFIG_KERNEL_MEMCG_KMEM
+OMAY CONFIG_KERNEL_MEMCG_V1
+OMAY CONFIG_KERNEL_FAIR_GROUP_SCHED
+OMAY CONFIG_KERNEL_CFS_BANDWIDTH
+OMAY CONFIG_KERNEL_RT_GROUP_SCHED
+OMAY CONFIG_KERNEL_MPTCP_IPV6
+OMAY CONFIG_KERNEL_IP_MROUTE_MULTIPLE_TABLES
+OMAY CONFIG_KERNEL_IPV6_MROUTE_MULTIPLE_TABLES
+OMAY CONFIG_KERNEL_IP_PIMSM_V1
+OMAY CONFIG_KERNEL_IP_PIMSM_V2
+OMAY CONFIG_KERNEL_IPV6_PIMSM_V2
+OMAY CONFIG_KERNEL_BLK_DEV_THROTTLING
+OMAY CONFIG_KERNEL_BLK_DEV_THROTTLING_LOW
+OMAY CONFIG_KERNEL_CFQ_GROUP_IOSCHED
+OMAY CONFIG_KERNEL_DEBUG_BLK_CGROUP
+# KERNEL_FREEZER is a hidden bool KERNEL_MEMCG selected (Config-kernel.in:885); the kernel's own FREEZER (PM_SLEEP || CGROUPS)
+# stays y because CGROUPS stays (KSTRICT on the kernel .config proves it)
+OMAY CONFIG_KERNEL_FREEZER
+# two packages that were never selected ("is not set") lose their visibility: they depend on KERNEL_MPTCP / KERNEL_NET_L3_MASTER_DEV
+OMAY CONFIG_PACKAGE_kmod-inet-mptcp-diag
+OMAY CONFIG_PACKAGE_kmod-vrf
+#
+# ---- KMAY: kernel symbols Kconfig moves with the lines above (found by olddefconfig on a copy of v9's kernel .config,
+#      $BUILD/v97/kcfg-probe/diet.diff; KSTRICT refuses anything else) ----
+# gone with MEMCG
+KMAY CONFIG_SLAB_OBJ_EXT
+KMAY CONFIG_PAGE_COUNTER
+KMAY CONFIG_MEMCG_V1
+KMAY CONFIG_MEMCG_KMEM
+KMAY CONFIG_CGROUP_WRITEBACK
+KMAY CONFIG_SOCK_CGROUP_DATA
+# gone with CGROUP_SCHED
+KMAY CONFIG_GROUP_SCHED_WEIGHT
+KMAY CONFIG_FAIR_GROUP_SCHED
+KMAY CONFIG_CFS_BANDWIDTH
+KMAY CONFIG_RT_GROUP_SCHED
+# gone with BLK_CGROUP
+KMAY CONFIG_BLK_CGROUP_RWSTAT
+KMAY CONFIG_BLK_DEV_THROTTLING
+KMAY CONFIG_BLK_CGROUP_IOLATENCY
+KMAY CONFIG_BLK_CGROUP_IOCOST
+KMAY CONFIG_BLK_CGROUP_IOPRIO
+# gone with MPTCP (it selects SKB_EXTENSIONS) / IP_MROUTE / IPV6_MROUTE / SEG6 / L3_MASTER_DEV
+KMAY CONFIG_MPTCP_IPV6
+KMAY CONFIG_SKB_EXTENSIONS
+KMAY CONFIG_IP_MROUTE_COMMON
+KMAY CONFIG_IP_MROUTE_MULTIPLE_TABLES
+KMAY CONFIG_IP_PIMSM_V1
+KMAY CONFIG_IP_PIMSM_V2
+KMAY CONFIG_IPV6_MROUTE_MULTIPLE_TABLES
+KMAY CONFIG_IPV6_PIMSM_V2
+KMAY CONFIG_IPV6_SEG6_BPF
+KMAY CONFIG_DST_CACHE
+# gone with IPV6_SEG6_LWTUNNEL, their only selector in this config (the real build showed them; the olddefconfig probe did not)
+KMAY CONFIG_LWTUNNEL
+KMAY CONFIG_LWTUNNEL_BPF
+KMAY CONFIG_NET_VRF
+# gone with CGROUP_BPF (only visible under it)
+KMAY CONFIG_BPF_STREAM_PARSER
+# new with JUMP_LABEL (left off)
+KMAY CONFIG_STATIC_KEYS_SELFTEST
+# built in because nfsd=y selects them (NFSD_V4 -> RPCSEC_GSS_KRB5 -> SUNRPC_GSS; CRYPTO_MD5 + SHA256; OID_REGISTRY via the GSS asn1)
+KMAY CONFIG_SUNRPC_GSS
+KMAY CONFIG_RPCSEC_GSS_KRB5
+KMAY CONFIG_CRYPTO_MD5
+KMAY CONFIG_CRYPTO_SHA256
+KMAY CONFIG_OID_REGISTRY
+#
+# ---- KWANT: the built kernel must say each (diet's + uaccess's + nfsdtrack's; the ud kernel's marks) ----
+KWANT # CONFIG_MEMCG is not set
+KWANT # CONFIG_BLK_CGROUP is not set
+KWANT # CONFIG_CGROUP_SCHED is not set
+KWANT # CONFIG_CGROUP_BPF is not set
+KWANT # CONFIG_MPTCP is not set
+KWANT # CONFIG_IP_MROUTE is not set
+KWANT # CONFIG_IPV6_MROUTE is not set
+KWANT # CONFIG_IPV6_SEG6_LWTUNNEL is not set
+KWANT # CONFIG_NET_L3_MASTER_DEV is not set
+KWANT CONFIG_JUMP_LABEL=y
+KWANT CONFIG_EXT4_FS=y
+KWANT CONFIG_JBD2=y
+KWANT CONFIG_FS_MBCACHE=y
+KWANT CONFIG_SATA_MV=y
+KWANT CONFIG_NFSD=y
+KWANT CONFIG_LOCKD=y
+KWANT CONFIG_SUNRPC=y
+KWANT CONFIG_NFSD_V4=y
+KWANT CONFIG_UACCESS_WITH_MEMCPY=y
+KWANT CONFIG_NFSD_LEGACY_CLIENT_TRACKING=y
