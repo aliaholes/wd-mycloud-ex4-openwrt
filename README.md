@@ -28,6 +28,10 @@
 > **Security fix, Nov 17 2026:** bundles built before that date left the trial's web server open to the LAN with
 > no root password. If you built one, rebuild before running it again. Details: [SAFETY.md](SAFETY.md), "SECURITY NOTE".
 >
+> **v8 bundles carry a web interface** that listens on port 443 of the trial's address on your LAN (port 80 only
+> redirects there). It has no default password and no account until you claim it with a code you read over ssh;
+> nothing in it can write your array. Details: [SAFETY.md](SAFETY.md), "The web interface".
+>
 > **Back up your data first.** Assume every disk in the NAS could be lost, and do not run this on the only copy
 > of anything.
 >
@@ -73,8 +77,45 @@ hardware with a way back that needs no tools. A permanent install is the next st
 | "System ready" to the front panel | Run 7: WD's `DeviceReady` frame, sent once, acknowledged at the first try |
 | The way back | Nine jumps on the test unit, four of them failures while the loader was being debugged. Every one ended on the stock system with the RAID clean: two by the watchdog, two by a power cycle by hand, five by the trial's own reboot. After the first failure the md5 of the U-Boot, kernel, ramdisk and identity partitions equalled the dumps taken before; the script re-checks the kernel partition's md5 before every run |
 
+## v7, v8 and v9: our own kernel, the NAS services, the web interface, the front panel, signed updates
+
+`build/build.sh` (above and below) boots the **official** OpenWrt kirkwood kernel. Since v7 there is a second path
+that builds **our own** OpenWrt 25.12.6 from source, with the SoC's RAID-parity and copy engines (`mv_xor`) that the
+official kernel cannot load, md RAID 1/5 built in (never auto-assembling), and the NAS services in the image:
+
+| Where | What |
+|---|---|
+| [build/v7/README.md](build/v7/README.md) | our own kernel + the NAS image (Samba 4, ksmbd, NFS, wsdd2, avahi, smartmontools, mdadm, msmtp, bonding, USB disks); `ex4-md-ro`, the read-only array tool and its walls |
+| [build/v8/README.md](build/v8/README.md) | v8 = v7 + the web interface + the panel daemon with the LCD, the image built behind a network wall, every v7 review fix |
+| [build/v9/README.md](build/v9/README.md) | v9 = v8 + the signed update path in the image (no official package feeds), the read-write bench (inert without its typed token), the recovery wall in `ex4-md-ro`, an eight-digit claim code |
+| [docs/UPDATES.md](docs/UPDATES.md) | how this system stays patched: signed, expiring releases, `ex4-update` on the box (check / verify / stage, never installs), key rotation, the CVE watch |
+| [docs/RWBENCH.md](docs/RWBENCH.md) | the read-write trial bench: the ONE path that writes the array, its walls, what it changes, its residual risk |
+| [webui/README.md](webui/README.md) | the web interface: one page served by the box, its backend, its rules and its security |
+| [docs/PANEL.md](docs/PANEL.md) | the panel daemon (`ex4fan`): fan, clock, buttons, and the front LCD (off unless you switch it on) |
+
+The walls are the same as for the official kernel, and two more: **every data service (Samba, ksmbd, NFS, rpcbind,
+wsdd2, avahi, mdadm, smartd) stays off at boot**, and **nothing writes the array unless the owner types a token for
+that one session**: `ex4-md-ro` assembles it read-only (and, since v9, refuses an array with a member being rebuilt),
+bundle-v9's read-write bench (`ex4-rwbench`, [docs/RWBENCH.md](docs/RWBENCH.md)) refuses to switch md1 read-write
+without the per-session token typed by hand, and the web interface's one write under the data volume (making a new
+share's folder) needs a read-write volume AND an owner's token valid for that boot (SAFETY.md, "Writing to the
+array"). Run 10 (Nov 17 2026) booted v7's own kernel on the test unit: both XOR engines probed, idle CPU 5.0% (the
+official kernel's run: 13.5%), network receive 54.9 MiB/s, LAN TCP port 22 only. Writing to the array (the path the
+XOR engines exist for) has not been measured: that needs a read-write trial.
+
+**Memory, honestly:** `free`'s "used" leaves out the RAM the trial's root file system itself takes. Counted with it
+(the processes' proportional share, Pss, plus the RAM-disk root), v8 with every NAS service and the web interface up
+takes **77 MiB** in qemu (101 MiB if every process's resident size is summed, which counts shared libraries again for
+each process). 59 MiB of that is the operating system unpacked into RAM, which an installed system would not carry:
+the services themselves come to about 18 MiB (an estimate from qemu; details in [build/v8/README.md](build/v8/README.md)).
+
 ## What is in the tree but has NOT run on real hardware yet
 
+- **The web interface** (v8): tested off the box only (the real rpcd/uhttpd/ucode under qemu, and a browser against a
+  fake box); never served by an EX4 yet.
+- **The front LCD** (v8): ex4fan builds WD's own field frames but sends none unless you switch the screen on; a v8
+  trial sends ONE test frame (the host name) to learn whether the micro acknowledges them. What the glass shows has
+  never been seen (the test unit faces a wall).
 - **Button presses written to the log** (no button does anything). Nobody pressed one in runs 7 or 8.
 - **`ex4phy`** ran in run 8 (it read both PHY chips: id `0141.0dd1`, register page 0); listed here only because it is new.
 
@@ -86,10 +127,10 @@ hardware with a way back that needs no tools. A permanent install is the next st
   "no link" there: 2329 carrier changes in 20 minutes in run 7). The generic driver does not expose the PHYs'
   temperature sensors. A proper kernel fix that keeps the Marvell driver is future work. Details:
   [docs/HARDWARE.md](docs/HARDWARE.md), "The link flap".
-- **Your RAID is not assembled.** The trial sees the four disks; the stock OpenWrt image has no mdadm and this
-  release adds none. Nothing mounts your data.
-- **LEDs, LCD, buttons.** Mapped (see [docs/HARDWARE.md](docs/HARDWARE.md)), not driven. The front panel shows
-  whatever stock left there. No button is acted on.
+- **Your RAID is not assembled.** The trial sees the four disks; the official OpenWrt image (`build/build.sh`) has no
+  mdadm. The v7/v8 image has mdadm, but nothing assembles at boot: `ex4-md-ro` assembles it READ-ONLY, by hand.
+- **LEDs, buttons.** Mapped (see [docs/HARDWARE.md](docs/HARDWARE.md)), not driven. No button is acted on. The LCD:
+  see "v7 and v8" above (off by default).
 - **Both LAN ports are bridged without spanning tree.** Use ONE cable. The script refuses two live cables.
 - The kernel still prints `rtc-mv: internal RTC not ticking`; the SATA-board thermistor read 0 on our unit.
 
