@@ -1,0 +1,1351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-OUaFWECjiF6kznvBuYXIskQkZlWABkPFmEWCr5F4sSk='; style-src 'sha256-0aQazoF6k9+VkjvEcYfUf4RvxMpbtdC/eTM4wlt07OE='; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="dark light">
+<meta name="referrer" content="no-referrer">
+<title>ex4</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='1' width='12' height='14' rx='2' fill='%23141b23'/%3E%3Crect x='4' y='3' width='8' height='3' rx='.6' fill='%238fa8ff'/%3E%3C/svg%3E">
+<style>:root{
+color-scheme:light;
+--bg:#f4f2ed; --surface:#ffffff; --surface-2:#faf8f4; --line:#e4dfd5; --line-strong:#858c94;
+--text:#171c22; --text-2:#4d5965; --text-3:#5e6a76;
+--accent:#3350c8; --accent-ink:#ffffff; --accent-wash:rgba(51,80,200,.09);
+--good:#1f8a45; --warn:#9a6000; --serious:#c2571f; --crit:#c0322f;
+--warn-wash:rgba(154,96,0,.10); --crit-wash:rgba(192,50,47,.09);
+--s1:#3a66d6; --s2:#12927c; --track:#e3e8f6;
+--shadow:0 1px 2px rgba(23,28,34,.04),0 8px 24px -12px rgba(23,28,34,.10);
+--sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Helvetica Neue",Arial,sans-serif;
+--mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono","DejaVu Sans Mono",Menlo,Consolas,monospace;
+--r:14px; --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+color-scheme:dark;
+--bg:#0d1218; --surface:#141b23; --surface-2:#1a232d; --line:#26323e; --line-strong:#6c7c8c;
+--text:#e9eef3; --text-2:#a9b6c3; --text-3:#8494a5;
+--accent:#8fa8ff; --accent-ink:#0d1218; --accent-wash:rgba(143,168,255,.10);
+--good:#45b56a; --warn:#f0b23e; --serious:#ee8a5f; --crit:#f0625f;
+--warn-wash:rgba(240,178,62,.10); --crit-wash:rgba(240,98,95,.10);
+--s1:#5b8def; --s2:#1fa890; --track:#222e3d;
+--shadow:none;
+}}
+:root[data-theme="dark"]{
+color-scheme:dark;
+--bg:#0d1218; --surface:#141b23; --surface-2:#1a232d; --line:#26323e; --line-strong:#6c7c8c;
+--text:#e9eef3; --text-2:#a9b6c3; --text-3:#8494a5;
+--accent:#8fa8ff; --accent-ink:#0d1218; --accent-wash:rgba(143,168,255,.10);
+--good:#45b56a; --warn:#f0b23e; --serious:#ee8a5f; --crit:#f0625f;
+--warn-wash:rgba(240,178,62,.10); --crit-wash:rgba(240,98,95,.10);
+--s1:#5b8def; --s2:#1fa890; --track:#222e3d;
+--shadow:none;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.5 var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p,ul,ol,figure,dl,dd{margin:0;padding:0}
+ul,ol{list-style:none}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.skip{position:absolute;left:12px;top:-60px;background:var(--accent);color:var(--accent-ink);padding:10px 14px;border-radius:10px;z-index:20;text-decoration:none;font-weight:600}
+.skip:focus{top:12px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+svg.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:22px 14px 16px;border-right:1px solid var(--line)}
+.mark{display:flex;align-items:center;gap:11px;padding:4px 10px 22px}
+.mark-glyph{width:30px;height:34px;border-radius:7px;background:#141b23;border:1px solid #2a3644;display:grid;grid-template-rows:9px 1fr;gap:3px;padding:4px}
+.mark-glyph i{display:block;border-radius:2px;background:#8fa8ff}
+.mark-glyph b{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.mark-glyph b::before,.mark-glyph b::after{content:"";background:#33414f;border-radius:1px}
+.mark-glyph b{position:relative}
+.mark-name{font-weight:650;letter-spacing:-.01em;font-size:17px;line-height:1.1}
+.mark-sub{color:var(--text-3);font-size:12.5px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:10px;color:var(--text-2);text-decoration:none;font-weight:500;transition:background .18s var(--ease),color .18s var(--ease)}
+.nav a:hover{background:var(--surface-2);color:var(--text)}
+.nav a[aria-current="page"]{background:var(--accent-wash);color:var(--text)}
+.nav a[aria-current="page"] svg{color:var(--accent)}
+.nav a.phone{display:none}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:0 4px}
+.ghost{display:inline-flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border:0;background:none;border-radius:10px;color:var(--text-2);cursor:pointer;text-align:left}
+.ghost:hover{background:var(--surface-2);color:var(--text)}
+.ver{color:var(--text-3);font-size:12px;padding:6px 10px 0;line-height:1.45}
+main{padding:28px clamp(18px,4vw,48px) 96px;max-width:1240px;width:100%}
+main:focus{outline:none}
+.strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 14px;margin-bottom:28px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--text-2);font-size:14px}
+.strip strong{color:var(--text);font-weight:600}
+.strip .sp{flex:1}
+.strip.warn{background:var(--warn-wash);border-color:transparent;color:var(--text)}
+.strip.crit{background:var(--crit-wash);border-color:transparent;color:var(--text)}
+.strip+.strip{margin-top:-18px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-weight:600;cursor:pointer;transition:background .18s var(--ease),border-color .18s var(--ease),transform .18s var(--ease)}
+.btn:hover{border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.btn.small{min-height:34px;padding:0 12px;font-size:14px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px 56px;align-items:center;margin-bottom:36px}
+.eyebrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--text-3);font-size:13.5px;margin-bottom:14px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.dot.stale{background:var(--text-3)}
+.dot.s1{background:var(--s1)}
+h1.say{font-size:clamp(2.1rem,4.6vw,3.6rem);line-height:1.04;letter-spacing:-.028em;font-weight:650;text-wrap:balance}
+.lede{margin-top:16px;max-width:38em;color:var(--text-2);font-size:clamp(1rem,1.25vw,1.125rem);line-height:1.55;text-wrap:pretty}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.chip{display:inline-flex;align-items:center;gap:7px;min-height:30px;padding:0 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:13.5px;color:var(--text-2);white-space:nowrap}
+.chip svg{width:15px;height:15px;stroke-width:2}
+.chip.good svg{color:var(--good)} .chip.warn{background:var(--warn-wash);border-color:transparent;color:var(--text)} .chip.warn svg{color:var(--warn)}
+.chip.crit{background:var(--crit-wash);border-color:transparent;color:var(--text)} .chip.crit svg{color:var(--crit)}
+.box{display:flex;flex-direction:column;align-items:center;gap:12px}
+.chassis{width:268px;padding:12px 12px 10px;border-radius:16px;background:linear-gradient(180deg,#1b222b,#11161c);border:1px solid #2b3642;box-shadow:0 24px 40px -28px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.lcd{flex:1;min-width:0;padding:8px 10px;border-radius:7px;background:#060b12;border:1px solid #223046;box-shadow:inset 0 0 18px rgba(96,140,255,.10);font:500 14.5px/1.3 var(--mono);color:#dbe6ff;letter-spacing:.02em;white-space:pre;overflow:hidden;transition:opacity .4s var(--ease)}
+.lcd span{display:block;height:1.3em}
+.lcd.off{opacity:.18}
+.pbtns{display:flex;flex-direction:column;gap:6px}
+.pbtn{width:26px;height:26px;border-radius:50%;border:1px solid #33414f;background:#161d25;color:#93a2b3;display:grid;place-items:center;cursor:pointer;padding:0;position:relative;transition:background .18s var(--ease),color .18s var(--ease)}
+.pbtn::after{content:"";position:absolute;inset:-9px}
+.pbtn:hover{background:#202a35;color:#e9eef3}
+.pbtn svg{width:12px;height:12px;stroke-width:2.2}
+.pbtn:focus-visible{outline-color:#8fa8ff}
+.bays{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.bay{height:150px;border-radius:8px;background:repeating-linear-gradient(180deg,#19212a 0 3px,#151c24 3px 6px);border:1px solid #27323e;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:9px 0 10px;color:#8494a5;font-size:12px}
+.led{width:7px;height:7px;border-radius:50%;background:#6f9bff;box-shadow:0 0 8px rgba(111,155,255,.75)}
+.led.busy{animation:breathe 1.6s ease-in-out infinite}
+.led.warn{background:#f0b23e;box-shadow:0 0 8px rgba(240,178,62,.8)}
+.led.off{background:#2c3743;box-shadow:none}
+.led.find{animation:blink .5s steps(2,jump-none) infinite}
+.bay b{font-weight:600;color:#c2ccd7;font-size:13px}
+.base{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding:0 4px;color:#8494a5;font-size:11px;letter-spacing:.08em}
+.box figcaption{color:var(--text-3);font-size:12.5px;text-align:center;max-width:268px}
+@keyframes breathe{50%{opacity:.35}}
+@keyframes blink{50%{opacity:.1}}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
+.card{grid-column:span 4;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px 22px;box-shadow:var(--shadow);min-width:0}
+.card.w8{grid-column:span 8} .card.w6{grid-column:span 6} .card.w12{grid-column:span 12} .card.w5{grid-column:span 5} .card.w3{grid-column:span 3}
+.col{grid-column:span 4;display:grid;gap:18px;align-content:start;min-width:0}
+.col .card{grid-column:auto}
+.card h2{font-size:14px;font-weight:600;color:var(--text-2);letter-spacing:.005em}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px}
+.card-head .more{font-size:13.5px;text-decoration:none}
+.card-head .more:hover{text-decoration:underline}
+.big{font-size:30px;line-height:1.1;font-weight:650;letter-spacing:-.02em}
+.big small{font-size:15px;font-weight:500;color:var(--text-2);letter-spacing:0;margin-left:3px}
+.note{color:var(--text-3);font-size:13.5px;margin-top:10px;line-height:1.5}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-bottom:16px}
+.kpi .lab{display:flex;align-items:center;gap:7px;color:var(--text-2);font-size:13.5px;margin-bottom:2px}
+.key{display:inline-block;width:14px;height:0;border-top:2px solid var(--s1);border-radius:2px;flex:none}
+.key.k2{border-color:var(--s2)}
+.kpi .val{font-size:24px;font-weight:650;letter-spacing:-.015em}
+.kpi .val small{font-size:13.5px;font-weight:500;color:var(--text-2);margin-left:3px;letter-spacing:0}
+.meter{height:8px;border-radius:4px;background:var(--track);overflow:hidden;margin-top:10px}
+.meter i{display:block;height:100%;width:0;border-radius:4px;background:var(--s1);transition:width .5s var(--ease)}
+.meter.thin{height:6px;margin-top:8px}
+.chart{position:relative;margin-top:4px}
+.chart svg{display:block;width:100%;height:190px;overflow:visible}
+.chart .grid-l{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--text-3);font:12px var(--sans);font-variant-numeric:tabular-nums}
+.chart .l1{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .l2{fill:none;stroke:var(--s2);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .a1{fill:var(--s1);opacity:.10}
+.chart .end{stroke:var(--surface);stroke-width:2}
+.chart .cross{stroke:var(--text-3);stroke-width:1}
+.chart-hit{position:absolute;inset:0;cursor:crosshair;border-radius:8px}
+.tip{position:absolute;top:6px;pointer-events:none;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:13px;min-width:132px;box-shadow:0 10px 24px -14px rgba(0,0,0,.5);z-index:3}
+.tip .when{color:var(--text-3);font-size:12px;margin-bottom:3px}
+.tip .row{display:flex;align-items:center;gap:7px}
+.tip .row b{font-weight:650;margin-left:auto;padding-left:14px}
+details.tbl{margin-top:8px;font-size:13.5px}
+details.tbl summary{cursor:pointer;color:var(--text-3);width:max-content;min-height:32px;display:flex;align-items:center}
+details.tbl table{margin-top:6px}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:9px 20px 9px 0;border-bottom:1px solid var(--line);font-weight:400;vertical-align:middle}
+th:last-child,td:last-child{padding-right:0}
+thead th{color:var(--text-3);font-size:12.5px;font-weight:500}
+td.num,th.num{text-align:right}
+.rows li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.rows li:first-child{border-top:0;padding-top:2px}
+.rows .t{min-width:0;flex:1}
+.rows .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rows .t span{display:block;color:var(--text-3);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rows .v{color:var(--text-2);font-size:14px;white-space:nowrap}
+#events li{align-items:flex-start}
+#events .time{flex:none;padding-top:2px}
+#events .t b,#events .t span{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:var(--text-2);white-space:nowrap}
+.state svg{width:16px;height:16px;stroke-width:2}
+.state.good svg{color:var(--good)} .state.warn svg{color:var(--warn)} .state.warn{color:var(--text)}
+.bayn{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);display:grid;place-items:center;font-weight:600;font-size:13px;color:var(--text-2);flex:none}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 18px;font-size:14px}
+dl.kv dt{color:var(--text-3)} dl.kv dd{text-align:right;min-width:0;overflow-wrap:anywhere}
+.time{color:var(--text-3);font-size:13px;width:74px;flex:none}
+.page-head{margin-bottom:26px}
+.page-head h1{font-size:clamp(1.7rem,3vw,2.25rem);letter-spacing:-.022em;font-weight:650;line-height:1.1}
+.page-head p{color:var(--text-2);margin-top:8px;max-width:44em}
+.members{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin:16px 0 6px}
+.members div{height:44px;background:var(--s1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:600}
+:root[data-theme="dark"] .members div{color:#0d1218}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .members div{color:#0d1218}}
+.members div:first-child{border-radius:8px 0 0 8px} .members div:last-child{border-radius:0 8px 8px 0}
+.members div.watch{background:var(--warn);color:#fff}
+:root[data-theme="dark"] .members div.watch{color:#171c22}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .members div.watch{color:#171c22}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--text-3);font-size:13px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--s1);margin-right:6px;vertical-align:-1px}
+.legend i.w{background:var(--warn)}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:18px}
+.actions .why{color:var(--text-3);font-size:13.5px}
+.xbtn{border:0;background:none;padding:6px;margin:-6px;border-radius:8px;cursor:pointer;color:var(--text-2);display:inline-flex;align-items:center;gap:8px;min-height:36px}
+.xbtn svg{transition:transform .18s var(--ease);width:16px;height:16px}
+.xbtn[aria-expanded="true"] svg{transform:rotate(90deg)}
+tr.detail td{background:var(--surface-2);padding:14px 16px;border-radius:0}
+.smart{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 22px}
+.smart div span{display:block;color:var(--text-3);font-size:12.5px}
+.smart div b{font-weight:600}
+.calm{border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;color:var(--text-2);font-size:14px;margin-top:18px;display:flex;gap:12px;align-items:flex-start}
+.calm svg{color:var(--accent);margin-top:1px}
+.panel-grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:18px;align-items:start}
+.panel-stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 20px}
+.lcd.large{flex:none;width:100%;max-width:290px;font-size:21px;padding:14px 16px;border-radius:10px}
+fieldset{border:0;padding:0;margin:0;min-width:0}
+legend{font-size:14px;font-weight:600;color:var(--text-2);padding:0;margin-bottom:12px}
+.field{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 0;border-top:1px solid var(--line);min-height:52px}
+.field:first-of-type{border-top:0}
+.field label,.field .lbl{min-width:0}
+.field small{display:block;color:var(--text-3);font-size:13px}
+select,input[type="text"],input[type="password"],input[type="email"],input[type="number"]{min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);max-width:100%;min-width:0}
+input.mono{font-family:var(--mono)}
+input.w16{width:19ch} input.w6{width:9ch;letter-spacing:.18em;text-align:center;font-size:20px} input.wcode{width:12ch;letter-spacing:.18em;text-align:center;font-size:20px} input.w8{width:9ch}
+input:disabled,select:disabled{opacity:.55}
+input[aria-invalid="true"]{border-color:var(--crit)}
+.switch{position:relative;width:46px;height:28px;flex:none}
+.switch input[type="checkbox"]{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.switch i{position:absolute;inset:0;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-strong);transition:background .18s var(--ease),border-color .18s var(--ease);pointer-events:none}
+.switch i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--text-2);transition:transform .18s var(--ease),background .18s var(--ease)}
+.switch input:checked + i{background:var(--accent);border-color:var(--accent)}
+.switch input:checked + i::after{transform:translateX(18px);background:var(--accent-ink)}
+.switch input:focus-visible + i{outline:2px solid var(--accent);outline-offset:2px}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px 16px}
+.checks label{display:flex;align-items:center;gap:10px;min-height:40px;cursor:pointer}
+input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent);margin:0;flex:none}
+.saved{color:var(--text-3);font-size:13.5px;min-height:1.5em;margin-top:14px}
+.view{animation:rise .22s var(--ease)}
+@keyframes rise{from{opacity:0;transform:translateY(5px)}}
+@media (max-width:1100px){ .card,.card.w8,.card.w6,.card.w5,.card.w3{grid-column:span 6} .card.w8,.col{grid-column:span 12} .col{grid-template-columns:1fr 1fr} }
+@media (max-width:860px){
+.app{grid-template-columns:1fr}
+.rail{position:fixed;inset:auto 0 0 0;height:auto;flex-direction:row;padding:6px max(8px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);background:var(--bg);z-index:8}
+.mark,.rail-foot .ver,.rail-foot .ghost span{display:none}
+.nav{flex-direction:row;flex:1;justify-content:space-around;gap:0}
+.nav a{flex-direction:column;gap:2px;font-size:11px;min-width:52px;padding:6px 4px;justify-content:center}
+.nav a.minor{display:none}
+.nav a.phone{display:flex}
+.rail-foot{margin:0;flex-direction:row;align-items:center;padding:0}
+.rail-foot .ghost.out{display:none}
+main{padding:20px 16px 120px}
+.hero{grid-template-columns:1fr;gap:28px}
+.box{order:2}
+.card,.card.w8,.card.w6,.card.w5,.card.w3,.col{grid-column:span 12}
+.col{grid-template-columns:1fr}
+.panel-grid{grid-template-columns:1fr}
+table.stack,table.stack tbody{display:block}
+table.stack thead{display:none}
+table.stack td{min-width:0;overflow-wrap:anywhere}
+table.stack .nowrap{white-space:normal}
+table.stack tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+table.stack td{border:0;padding:2px 0;text-align:left}
+table.stack td[data-l]::before{content:attr(data-l);display:block;color:var(--text-3);font-size:12px}
+table.stack td.first{grid-column:1/-1}
+table.stack tr.detail{display:block}
+}
+@media (max-width:520px){ .kpis{grid-template-columns:1fr 1fr} .kpis .kpi:last-child{grid-column:1/-1} }
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
+@media (prefers-contrast:more){ :root{--line:var(--line-strong)} }
+@media (forced-colors:active){ .meter i,.members div{forced-color-adjust:none} .led{border:1px solid CanvasText} }
+.mt{margin-top:16px} .mt2{margin-top:22px} .m0{margin:0} .center{text-align:center} .muted{color:var(--text-3)} .small{font-size:13px} .nowrap{white-space:nowrap} .b6{font-weight:600}
+.tfill{fill:var(--text-2)} .cs1{fill:var(--s1)} .cs2{fill:var(--s2)}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.row.end{justify-content:flex-end}
+.btn.danger{border-color:var(--crit);color:var(--crit)}
+.btn.danger:hover{background:var(--crit-wash)}
+.linkbtn{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;min-height:32px}
+.badge{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--line);font-size:12.5px;color:var(--text-2);white-space:nowrap}
+.badge.acc{background:var(--accent-wash);border-color:transparent;color:var(--text)}
+.items li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.items li:first-child{border-top:0;padding-top:4px}
+.items .nm{font-weight:600;font-size:16px;overflow-wrap:anywhere}
+.items .ds{color:var(--text-2);font-size:14px;margin-top:2px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.items .ac{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.empty{color:var(--text-3);padding:10px 0 4px}
+.form{display:grid;gap:14px}
+.form label,.form .lab{display:grid;gap:6px;font-size:14px;color:var(--text-2);min-width:0}
+.form label>input:not([type="checkbox"]),.form label>select{width:100%}
+.form .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form .hint,.hint{color:var(--text-3);font-size:13px;line-height:1.45}
+.form .inline{display:flex;align-items:center;gap:10px;color:var(--text);min-height:40px;cursor:pointer}
+.err{color:var(--crit);font-size:14px;min-height:1.4em}
+.who{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:center}
+.who span{overflow-wrap:anywhere;color:var(--text)}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--text);padding:0;width:min(520px,calc(100vw - 28px));max-height:calc(100vh - 40px);box-shadow:0 30px 80px -30px rgba(0,0,0,.6)}
+dialog::backdrop{background:rgba(8,12,18,.55)}
+dialog form{padding:22px 24px 20px;display:grid;gap:16px;overflow:auto;max-height:calc(100vh - 42px)}
+dialog h2{font-size:19px;font-weight:650;letter-spacing:-.01em}
+dialog p{color:var(--text-2)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:30;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:12px;padding:10px 16px;font-size:14px;max-width:calc(100vw - 28px);box-shadow:0 14px 40px -18px rgba(0,0,0,.6)}
+.toast.bad{border-color:var(--crit)}
+.toast:empty{display:none}
+.door{min-height:100vh;display:grid;place-items:center;padding:28px 16px}
+.door-card{width:min(440px,100%);background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:30px 28px 26px;box-shadow:var(--shadow)}
+.door-card.wide{width:min(560px,100%)}
+.door-mark{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.door h1{font-size:1.75rem;line-height:1.1;letter-spacing:-.022em;font-weight:650;margin-bottom:8px}
+.door .lede{margin:0 0 22px;font-size:1rem}
+.door .foot{margin-top:20px;color:var(--text-3);font-size:13px;line-height:1.5}
+.fp{font-family:var(--mono);color:var(--text);white-space:nowrap}
+.steps{counter-reset:st;display:grid;gap:22px}
+.steps>li{counter-increment:st;display:grid;gap:10px;padding-left:38px;position:relative}
+.steps>li::before{content:counter(st);position:absolute;left:0;top:-2px;width:26px;height:26px;border-radius:50%;border:1px solid var(--line-strong);display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--text-2)}
+.steps h2{font-size:15px;font-weight:600}
+.lcdlist{width:100%;max-width:300px;padding:12px 14px;border-radius:10px;background:#060b12;border:1px solid #223046;box-shadow:inset 0 0 18px rgba(96,140,255,.10);font:500 13.5px/1.55 var(--mono);color:#dbe6ff}
+.lcdlist div{display:flex;justify-content:space-between;gap:12px}
+.lcdlist span{color:#8ea0c0}
+.lcdlist b{font-weight:500;text-align:right;overflow-wrap:anywhere}
+.cards2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.cards2 .card{grid-column:auto}
+.cards2 .full{grid-column:1/-1}
+.card h3{font-size:14px;font-weight:600;color:var(--text-2);margin:18px 0 8px}
+.svc{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 18px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}
+.svc:first-child{border-top:0;padding-top:4px}
+.svc .st{color:var(--text-2);font-size:14px;white-space:nowrap}
+.more-list a{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 6px;border-top:1px solid var(--line);color:var(--text);text-decoration:none;font-weight:500}
+.more-list a:first-child{border-top:0}
+.more-list svg{color:var(--text-2)}
+.say-sub{font-size:13.5px;color:var(--text-3);margin-top:14px}
+@media (max-width:860px){ .cards2{grid-template-columns:1fr} .form .two{grid-template-columns:1fr} .svc{grid-template-columns:minmax(0,1fr) auto} .svc .st{grid-column:1/-1;grid-row:2} .items li{grid-template-columns:1fr} .items .ac{justify-content:flex-start} .toast{bottom:calc(82px + env(safe-area-inset-bottom))} }
+@media (forced-colors:active){ .switch i{border:1px solid CanvasText} .switch input:checked + i{background:Highlight} }
+.defs{position:absolute}
+.ver{white-space:pre-line}
+.members div.out{background:var(--crit);color:#fff}
+.legend i.o{background:var(--crit)}
+.led.crit{background:#f0625f;box-shadow:0 0 8px rgba(240,98,95,.8)}
+.door main:focus{outline:none}</style>
+</head>
+<body>
+<svg class="defs" width="0" height="0" aria-hidden="true">
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v8.5h11V10"/></symbol>
+<symbol id="i-disks" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6" rx="1.6"/><rect x="4" y="13.5" width="16" height="6" rx="1.6"/><path d="M7.5 7.5h.01M7.5 16.5h.01"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><path d="M16 5.6a3.2 3.2 0 0 1 0 5.8M18 14.4c1.7.7 2.7 2.3 3 4.6"/></symbol>
+<symbol id="i-services" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="6" rx="3"/><circle cx="17.5" cy="8" r="1.4"/><rect x="3" y="13" width="18" height="6" rx="3"/><circle cx="6.5" cy="16" r="1.4"/></symbol>
+<symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.2"/><path d="M7 10.5h7M7 13.5h4.5"/><circle cx="17.3" cy="12" r="1.1"/></symbol>
+<symbol id="i-system" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.2A7.8 7.8 0 0 1 9.8 4.5a7.8 7.8 0 1 0 9.7 9.7z"/></symbol>
+<symbol id="i-out" viewBox="0 0 24 24"><path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10M14 8.5 17.5 12 14 15.5M9.5 12h8"/></symbol>
+<symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.3 12.2 2.5 2.5 4.9-5.2"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4.2 20.5 19h-17z"/><path d="M12 10v4.2M12 16.6h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="m6 14.5 6-6 6 6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><path d="M5.5 12h.01M12 12h.01M18.5 12h.01"/></symbol>
+</svg>
+<a class="skip" href="#main">Skip to content</a>
+<div class="door" id="door" hidden>
+<main class="door-card" id="door-in" tabindex="-1" hidden aria-labelledby="in-h">
+<div class="door-mark"><div class="mark-glyph" aria-hidden="true"><i></i><b></b></div><div><div class="mark-name" id="in-name">ex4</div><div class="mark-sub" id="in-host"></div></div></div>
+<h1 id="in-h">Sign in</h1>
+<form class="form" id="in-form" autocomplete="on" novalidate>
+<label>Name<input id="in-user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+<label>Password<input id="in-pass" type="password" autocomplete="current-password" required></label>
+<p class="err" id="in-err" role="alert"></p>
+<button class="btn primary" id="in-go" type="submit">Sign in</button>
+</form>
+<p class="foot" id="in-foot"></p>
+</main>
+<main class="door-card wide" id="door-setup" tabindex="-1" hidden aria-labelledby="su-h">
+<div class="door-mark"><div class="mark-glyph" aria-hidden="true"><i></i><b></b></div><div><div class="mark-name">A new box</div><div class="mark-sub" id="su-host"></div></div></div>
+<h1 id="su-h">Make this box yours.</h1>
+<p class="lede">It has no account and no default password. Whoever can read the code on the box itself becomes its administrator.</p>
+<form id="su-form" autocomplete="off" novalidate>
+<ol class="steps">
+<li><h2 id="su-l1">The code from the box</h2>
+<input class="mono wcode" id="su-code" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code" aria-labelledby="su-l1" aria-describedby="su-h1" required>
+<p class="hint" id="su-h1">Eight digits. Run <span class="fp">ex4-claim</span> over ssh to read them (the box also offers them to its front screen).</p></li>
+<li><h2 id="su-l2">A name for the box</h2>
+<input class="mono w16" id="su-name" type="text" maxlength="32" autocapitalize="none" spellcheck="false" aria-labelledby="su-l2" aria-describedby="su-h2" required>
+<p class="hint" id="su-h2">Lower-case letters, digits and dashes. You will reach it as <span class="fp" id="su-local">ex4.local</span>.</p></li>
+<li><h2>The administrator</h2>
+<div class="form">
+<label>Name<input id="su-user" type="text" maxlength="31" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+<div class="two">
+<label>Password<input id="su-p1" type="password" autocomplete="new-password" aria-describedby="su-h3" required></label>
+<label>Once more<input id="su-p2" type="password" autocomplete="new-password" required></label>
+</div>
+<p class="hint" id="su-h3">Twelve characters or more. Only a scrambled form of it is sent now, and only that is stored: the box keeps no password it could give away.</p>
+</div></li>
+</ol>
+<p class="err mt" id="su-err" role="alert"></p>
+<button class="btn primary" id="su-go" type="submit">Claim this box</button>
+</form>
+<p class="foot" id="su-foot"></p>
+</main>
+</div>
+<div class="app" id="app" hidden>
+<header class="rail">
+<div class="mark">
+<div class="mark-glyph" aria-hidden="true"><i></i><b></b></div>
+<div><div class="mark-name" id="mk-name">ex4</div><div class="mark-sub" id="mk-addr"></div></div>
+</div>
+<nav class="nav" aria-label="Pages">
+<a href="#overview"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span>Overview</span></a>
+<a href="#storage"><svg class="i" aria-hidden="true"><use href="#i-disks"/></svg><span>Storage</span></a>
+<a href="#shares"><svg class="i" aria-hidden="true"><use href="#i-folder"/></svg><span>Shares</span></a>
+<a href="#users" class="minor"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Users</span></a>
+<a href="#services" class="minor"><svg class="i" aria-hidden="true"><use href="#i-services"/></svg><span>Services</span></a>
+<a href="#alerts" class="minor"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg><span>Alerts</span></a>
+<a href="#panel" class="minor"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg><span>Front panel</span></a>
+<a href="#system" class="minor"><svg class="i" aria-hidden="true"><use href="#i-system"/></svg><span>System</span></a>
+<a href="#more" class="phone"><svg class="i" aria-hidden="true"><use href="#i-more"/></svg><span>More</span></a>
+</nav>
+<div class="rail-foot">
+<button class="ghost" id="theme" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg><span id="theme-l">Dark</span></button>
+<button class="ghost out" id="signout" type="button"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg><span>Sign out</span></button>
+<p class="ver" id="ver"></p>
+</div>
+</header>
+<main id="main" tabindex="-1">
+<div class="strip" id="trial" role="status" hidden>
+<span id="trial-t"></span><span class="sp"></span>
+<button class="btn small" id="stay" type="button">Stay</button>
+</div>
+<div class="strip warn" id="netp" role="status" hidden>
+<span id="netp-t"></span><span class="sp"></span>
+<button class="btn small primary" id="netp-keep" type="button">Keep it</button>
+</div>
+<div class="strip crit" id="lost" role="status" hidden><span id="lost-t"></span></div>
+<section class="view" id="v-overview" hidden aria-labelledby="say">
+<div class="hero">
+<div>
+<p class="eyebrow"><span class="dot" id="dot"></span><span id="heard">Live</span><span aria-hidden="true">·</span><span id="upfor"></span></p>
+<h1 class="say" id="say" aria-live="polite">&nbsp;</h1>
+<p class="lede" id="lede"></p>
+<ul class="facts" id="facts"></ul>
+</div>
+<figure class="box" aria-label="The front of the box as it is now">
+<div class="chassis">
+<div class="top"><div class="lcd" id="lcd" role="img" aria-label="Front screen"><span></span><span></span></div></div>
+<div class="bays" id="bays"></div>
+<div class="base"><span class="led" id="pled"></span><span>EX4</span></div>
+</div>
+<figcaption id="box-cap">The front of the box, as it is now.</figcaption>
+</figure>
+</div>
+<div class="grid">
+<article class="card w8" aria-labelledby="h-act">
+<div class="card-head"><h2 id="h-act">Activity, last five minutes</h2><span class="state" id="act-state"></span></div>
+<div class="kpis">
+<div class="kpi"><div class="lab"><i class="key"></i>Arriving</div><div class="val"><span id="k-in">0.0</span><small>MiB/s</small></div></div>
+<div class="kpi"><div class="lab"><i class="key k2"></i>Leaving</div><div class="val"><span id="k-out">0.0</span><small>MiB/s</small></div></div>
+<div class="kpi"><div class="lab">Processor</div><div class="val"><span id="k-cpu">0</span><small>% busy</small></div>
+<div class="meter thin" id="m-cpu" role="meter" aria-label="Processor busy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>
+</div>
+<div class="chart" id="chart">
+<svg id="svg" role="img" aria-labelledby="h-act chart-sum"></svg>
+<div class="chart-hit" id="hit" tabindex="0" role="application" aria-label="Activity chart. Left and right arrows read values back in time."></div>
+<div class="tip" id="tip" hidden></div>
+</div>
+<p class="vh" id="chart-sum"></p>
+<p class="note" id="act-note"></p>
+<details class="tbl" id="act-tbl"><summary>Show as a table</summary><table><thead><tr><th>When</th><th class="num">Arriving, MiB/s</th><th class="num">Leaving, MiB/s</th></tr></thead><tbody id="tbody"></tbody></table></details>
+</article>
+<div class="col">
+<article class="card" aria-labelledby="h-cap">
+<div class="card-head"><h2 id="h-cap">Space</h2><a class="more" href="#storage">Storage</a></div>
+<div class="big" id="cap-big"></div>
+<div class="meter" id="m-cap" role="meter" aria-label="Space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+<p class="note" id="cap-note"></p>
+</article>
+<article class="card" aria-labelledby="h-clim">
+<div class="card-head"><h2 id="h-clim">Climate</h2></div>
+<div class="big" id="clim-big"></div>
+<div class="meter" id="m-temp" role="meter" aria-label="Warmest disk, from 20 to 60 degrees" aria-valuemin="20" aria-valuemax="60" aria-valuenow="20"><i></i></div>
+<dl class="kv mt" id="clim-kv"></dl>
+</article>
+</div>
+<article class="card w5" aria-labelledby="h-disks">
+<div class="card-head"><h2 id="h-disks">Disks</h2><a class="more" href="#storage">Details</a></div>
+<ul class="rows" id="disks"></ul>
+</article>
+<article class="card" aria-labelledby="h-net">
+<div class="card-head"><h2 id="h-net">Network</h2><a class="more" href="#system">Address</a></div>
+<div class="big" id="net-big"></div>
+<dl class="kv mt" id="net-kv"></dl>
+</article>
+<article class="card w3" aria-labelledby="h-ev">
+<div class="card-head"><h2 id="h-ev">Lately</h2></div>
+<ul class="rows" id="events"></ul>
+</article>
+</div>
+</section>
+<section class="view" id="v-storage" hidden aria-labelledby="st-h">
+<div class="page-head"><h1 id="st-h">Storage</h1><p>One array, four disks. This page reads. In this version nothing here can create, reshape, check or erase anything: no such command exists in it.</p></div>
+<div class="grid">
+<article class="card w8" aria-labelledby="h-arr">
+<div class="card-head"><h2 id="h-arr">The array</h2><span class="state" id="arr-state"></span></div>
+<div class="big" id="arr-big"></div>
+<div class="members" id="members" role="img" aria-label="Member disks by bay"></div>
+<div class="legend" id="arr-legend"></div>
+<dl class="kv mt2" id="arr-kv"></dl>
+</article>
+<article class="card" aria-labelledby="h-vol">
+<div class="card-head"><h2 id="h-vol">Space</h2></div>
+<div class="big" id="vol-big"></div>
+<div class="meter" id="m-vol" role="meter" aria-label="Space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+<dl class="kv mt" id="vol-kv"></dl>
+<p class="note">Sizes of single shares are not shown: counting them means reading every folder, and that would slow a copy.</p>
+</article>
+<article class="card w12" aria-labelledby="h-dt">
+<div class="card-head"><h2 id="h-dt">Disks</h2><span class="note m0" id="dt-age"></span></div>
+<table class="stack"><thead><tr><th>Bay</th><th>Disk</th><th class="num">Temperature</th><th class="num">Running</th><th class="num">Moved sectors</th><th class="num">Unreadable</th><th>Health</th></tr></thead><tbody id="dtable"></tbody></table>
+</article>
+</div>
+<div class="calm"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><span>When replacing a disk comes to this page, it will ask for a button press on the box itself. A browser alone will never be enough to change what is on the disks.</span></div>
+</section>
+<section class="view" id="v-shares" hidden aria-labelledby="sh-h">
+<div class="page-head"><h1 id="sh-h">Shares</h1><p id="sh-p">Folders this box offers to the network.</p></div>
+<div class="cards2">
+<article class="card full" aria-labelledby="h-shl">
+<div class="card-head"><h2 id="h-shl">Offered now</h2><button class="btn small primary" id="sh-add" type="button">Add a share</button></div>
+<ul class="items" id="sh-list"></ul>
+<p class="note" id="sh-note"></p>
+</article>
+<article class="card full" aria-labelledby="h-nfs">
+<div class="card-head"><h2 id="h-nfs">NFS exports</h2><button class="btn small" id="ex-add" type="button">Add an export</button></div>
+<ul class="items" id="ex-list"></ul>
+<p class="note" id="ex-note">For Linux and other Unix machines. An export names a share and the machines that may mount it. WD's own firmware dropped NFS in an update; here it stays.</p>
+</article>
+</div>
+</section>
+<section class="view" id="v-users" hidden aria-labelledby="us-h">
+<div class="page-head"><h1 id="us-h">Users</h1><p>People who may open shares, the groups they belong to, and the one who runs this box.</p></div>
+<div class="cards2">
+<article class="card" aria-labelledby="h-ppl">
+<div class="card-head"><h2 id="h-ppl">People</h2><button class="btn small primary" id="us-add" type="button">Add a person</button></div>
+<ul class="items" id="us-list"></ul>
+</article>
+<article class="card" aria-labelledby="h-grp">
+<div class="card-head"><h2 id="h-grp">Groups</h2><button class="btn small" id="gr-add" type="button">Add a group</button></div>
+<ul class="items" id="gr-list"></ul>
+</article>
+<article class="card full" aria-labelledby="h-adm">
+<div class="card-head"><h2 id="h-adm">The administrator</h2></div>
+<ul class="items"><li><div><div class="nm" id="adm-name"></div><div class="ds">Signs in to this page. Not a share user, not a Unix account, and not root.</div></div>
+<div class="ac"><button class="btn small" id="adm-pass" type="button">Change password</button><button class="btn small" id="adm-out" type="button">Sign out everywhere</button></div></li></ul>
+<p class="note">Passwords are never shown and never stored readable. An administrator password leaves this page only as a scrambled hash.</p>
+</article>
+</div>
+</section>
+<section class="view" id="v-services" hidden aria-labelledby="sv-h">
+<div class="page-head"><h1 id="sv-h">Services</h1><p>What this box runs, and what each one holds in memory. Nothing here phones home; there is no cloud to switch off.</p></div>
+<article class="card w12" aria-label="Services"><div id="sv-list"></div></article>
+</section>
+<section class="view" id="v-alerts" hidden aria-labelledby="al-h">
+<div class="page-head"><h1 id="al-h">Alerts</h1><p>A box that fails in silence is no use. It can write to you when a disk, the array, the temperature or the free space needs you.</p></div>
+<form class="cards2" id="al-form" novalidate>
+<article class="card" aria-labelledby="h-alw">
+<div class="card-head"><h2 id="h-alw">Write to me</h2><span class="switch"><input type="checkbox" id="al-on" aria-label="Send e-mail alerts"><i></i></span></div>
+<div class="form">
+<label>To<input id="al-to" type="email" autocomplete="email" spellcheck="false"></label>
+<label>From<input id="al-from" type="email" spellcheck="false" aria-describedby="al-h-from"></label>
+<p class="hint" id="al-h-from">The address the mail server lets this box send as.</p>
+<fieldset><legend>When</legend><div class="checks" id="al-ev"></div></fieldset>
+<label>Warn when the volume is this full, percent<input class="w8" id="al-pct" type="number" min="50" max="99" inputmode="numeric"></label>
+</div>
+</article>
+<article class="card" aria-labelledby="h-als">
+<div class="card-head"><h2 id="h-als">Through this mail server</h2></div>
+<div class="form">
+<div class="two"><label>Server<input id="al-host" type="text" spellcheck="false" autocapitalize="none" placeholder="smtp.example.org"></label>
+<label>Port<input id="al-port" type="number" min="1" max="65535" inputmode="numeric"></label></div>
+<label>Encryption<select id="al-tls"><option value="starttls">STARTTLS (port 587)</option><option value="tls">TLS from the start (port 465)</option><option value="none">none (only on your own network)</option></select></label>
+<label>Account<input id="al-user" type="text" spellcheck="false" autocapitalize="none" autocomplete="off"></label>
+<label>Password<input id="al-pass" type="password" autocomplete="new-password" aria-describedby="al-h-pass"></label>
+<p class="hint" id="al-h-pass"></p>
+</div>
+</article>
+<article class="card full">
+<div class="row"><button class="btn primary" id="al-save" type="submit">Save</button><button class="btn" id="al-test" type="button">Send a test message</button><span class="err" id="al-err" role="alert"></span></div>
+<p class="note" id="al-last"></p>
+</article>
+</form>
+</section>
+<section class="view" id="v-panel" hidden aria-labelledby="pn-h">
+<div class="page-head"><h1 id="pn-h">Front panel</h1><p>The little screen on the front: the box's name, its address, the state of the disks, free space, the fan and the temperatures. Changes apply as you make them.</p></div>
+<div class="panel-grid">
+<article class="card panel-stage" aria-labelledby="h-pnl">
+<h2 id="h-pnl">What the screen was given</h2>
+<div class="lcdlist" id="pn-sent"></div>
+<p class="note center m0" id="pn-age"></p>
+</article>
+<article class="card">
+<fieldset>
+<legend>Screen</legend>
+<div class="field"><span class="lbl" id="l-feed">Feed the screen<small>Off: the screen is sent nothing</small></span>
+<span class="switch"><input type="checkbox" id="f-feed" aria-labelledby="l-feed"><i></i></span></div>
+<div class="field"><span class="lbl" id="l-on">Screen on<small>Off saves a little power</small></span>
+<span class="switch"><input type="checkbox" id="f-on" aria-labelledby="l-on"><i></i></span></div>
+<div class="field"><label for="f-bl">Screen sleeps after</label>
+<select id="f-bl"><option value="0">10 seconds</option><option value="3">5 minutes</option><option value="6">never</option></select></div>
+</fieldset>
+<p class="saved" id="pn-saved" role="status"></p>
+<p class="note" id="pn-note"></p>
+</article>
+</div>
+</section>
+<section class="view" id="v-system" hidden aria-labelledby="sy-h">
+<div class="page-head"><h1 id="sy-h">System</h1><p>Name, clock, address, certificate, power.</p></div>
+<div class="cards2">
+<article class="card" aria-labelledby="h-syn">
+<div class="card-head"><h2 id="h-syn">Name and clock</h2></div>
+<form class="form" id="sy-form" novalidate>
+<label>Name of the box<input class="mono" id="sy-name" type="text" maxlength="32" autocapitalize="none" spellcheck="false"></label>
+<label>Time zone<select id="sy-zone"></select></label>
+<p class="hint" id="sy-time"></p>
+<div class="row"><button class="btn primary" type="submit">Save</button><span class="err" id="sy-err" role="alert"></span></div>
+</form>
+</article>
+<article class="card" aria-labelledby="h-syadr">
+<div class="card-head"><h2 id="h-syadr">Address</h2><span class="state" id="sy-live"></span></div>
+<form class="form" id="net-form" novalidate>
+<label>The address comes<select id="net-mode"><option value="dhcp">from your router</option><option value="static">fixed, set here</option></select></label>
+<div class="form" id="net-static" hidden>
+<div class="two"><label>Address<input class="mono" id="net-addr" type="text" inputmode="decimal" placeholder="192.0.2.50"></label><label>Mask<input class="mono" id="net-mask" type="text" inputmode="decimal" placeholder="255.255.255.0"></label></div>
+<div class="two"><label>Router<input class="mono" id="net-gw" type="text" inputmode="decimal" placeholder="192.0.2.1"></label><label>Name servers<input class="mono" id="net-dns" type="text" placeholder="192.0.2.1 9.9.9.9"></label></div>
+</div>
+<label>The two network ports<select id="net-bond"><option value="none">each on its own</option><option value="active-backup">as one, the second a spare</option></select></label>
+<p class="hint">A change is tried for 90 seconds. Unless this page reaches the box again and you keep it, the old settings come back by themselves: a mistyped address cannot lock you out.</p>
+<div class="row"><button class="btn primary" type="submit">Try these settings</button><span class="err" id="net-err" role="alert"></span></div>
+</form>
+<dl class="kv mt" id="net-ports"></dl>
+</article>
+<article class="card" aria-labelledby="h-sycert">
+<div class="card-head"><h2 id="h-sycert">Certificate</h2></div>
+<dl class="kv" id="cert-kv"></dl>
+<p class="note">This box makes its own certificate, so a browser warns the first time. Compare the fingerprint it shows you with the one here; they must match. A new name wants a new certificate.</p>
+<div class="actions"><button class="btn" id="cert-new" type="button">Make a new certificate</button></div>
+</article>
+<article class="card" aria-labelledby="h-sypow">
+<div class="card-head"><h2 id="h-sypow">Power</h2></div>
+<p class="note m0" id="pow-note"></p>
+<div class="actions"><button class="btn" id="pow-restart" type="button">Restart</button><button class="btn" id="pow-off" type="button">Shut down</button></div>
+</article>
+<article class="card" aria-labelledby="h-sybun">
+<div class="card-head"><h2 id="h-sybun">Support bundle</h2></div>
+<p class="note m0">Logs to attach to a bug report, with addresses and serial numbers masked. It is made on the box and saved by your browser; it goes nowhere else.</p>
+<div class="actions"><button class="btn" id="bun-make" type="button">Make and save a bundle</button></div>
+</article>
+<article class="card" aria-labelledby="h-syab">
+<div class="card-head"><h2 id="h-syab">About</h2></div>
+<dl class="kv" id="about-kv"></dl>
+</article>
+<article class="card" aria-labelledby="h-syupd">
+<div class="card-head"><h2 id="h-syupd">Updates</h2></div>
+<dl class="kv" id="upd-kv"></dl>
+<p class="note">This box never looks for updates on its own and never calls anywhere by itself. Over ssh, “ex4-update check” asks the release address once; only a release signed with a key this box holds, for this board, newer than what runs and not past its expiry date, is ever accepted. Nothing is installed from here: a checked release is staged in memory and gone at the next start.</p>
+</article>
+</div>
+</section>
+<section class="view" id="v-more" hidden aria-labelledby="mo-h">
+<div class="page-head"><h1 id="mo-h">More</h1></div>
+<article class="card w12"><nav class="more-list" aria-label="More pages">
+<a href="#users"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Users</a>
+<a href="#services"><svg class="i" aria-hidden="true"><use href="#i-services"/></svg>Services</a>
+<a href="#alerts"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg>Alerts</a>
+<a href="#panel"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg>Front panel</a>
+<a href="#system"><svg class="i" aria-hidden="true"><use href="#i-system"/></svg>System</a>
+</nav></article>
+<div class="actions"><button class="btn" id="signout2" type="button">Sign out</button></div>
+</section>
+</main>
+</div>
+<dialog id="dlg" aria-labelledby="dlg-h"><form id="dlg-f" novalidate>
+<h2 id="dlg-h"></h2>
+<div class="form" id="dlg-b"></div>
+<p class="err" id="dlg-err" role="alert"></p>
+<div class="row end"><button class="btn" id="dlg-no" type="button">Cancel</button><button class="btn primary" id="dlg-ok" type="submit">Save</button></div>
+</form></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>'use strict';
+(function () {
+if (window.top !== window.self) return;            // never inside someone else's frame (a <meta> policy cannot say frame-ancestors)
+const D = document, $ = (id) => D.getElementById(id), Z = '00000000000000000000000000000000';
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, kids) {
+const n = D.createElement(tag);
+for (const k in attrs || {}) { if (k === 'text') n.textContent = attrs[k]; else if (k === 'style') throw new Error('no inline styles'); else if (attrs[k] !== false && attrs[k] != null) n.setAttribute(k, attrs[k] === true ? '' : attrs[k]); }
+(kids || []).forEach((c) => { if (c != null) n.appendChild(typeof c === 'string' ? D.createTextNode(c) : c); });
+return n;
+}
+function sv(tag, attrs, text) { const n = D.createElementNS(SVGNS, tag); for (const k in attrs || {}) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; }
+function icon(name) { const s = sv('svg', { 'class': 'i', 'aria-hidden': 'true' }); s.appendChild(sv('use', { href: '#i-' + name })); return s; }
+function fill(n, kids) { n.textContent = ''; (kids || []).forEach((c) => { if (c != null) n.appendChild(typeof c === 'string' ? D.createTextNode(c) : c); }); return n; }
+function txt(id, s) { const n = $(id); if (n.textContent !== s) n.textContent = s; }
+function state(kind, text) { return el('span', { 'class': 'state ' + kind }, [kind === 'good' ? icon('ok') : kind ? icon('warn') : null, el('span', { text })]); }
+function kvs(id, rows) { fill($(id), [].concat.apply([], rows.filter(Boolean).map((r) => [el('dt', { text: r[0] }), el('dd', { text: r[1] })]))); }
+function meter(id, pct, now, text) { const m = $(id); m.setAttribute('aria-valuenow', String(now)); if (text) m.setAttribute('aria-valuetext', text); m.firstElementChild.style.width = Math.max(0, Math.min(100, pct)) + '%'; }
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const f1 = (v) => v.toFixed(1), mib = (b) => (b || 0) / 1048576;
+const NUM = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+const num = (n) => NUM[n] || String(n), cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const plural = (n, one, many) => (n === 1 ? one : many);
+function size(kb) {                                // binary steps, the labels a file manager shows
+if (kb == null) return '?';
+const u = ['KB', 'MB', 'GB', 'TB']; let v = kb, i = 0;
+while (v >= 1024 && i < 3) { v /= 1024; i++; }
+return (v >= 100 || i === 0 ? String(Math.round(v)) : v.toFixed(1)) + ' ' + u[i];
+}
+function dur(s) {
+const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+if (d) return d + plural(d, ' day', ' days') + (h ? ' ' + h + plural(h, ' hour', ' hours') : '');
+if (h) return h + plural(h, ' hour', ' hours') + (m ? ' ' + m + ' min' : '');
+return m ? m + ' min' : 'under a minute';
+}
+const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+const years = (h) => (h == null ? '?' : (h / 8766).toFixed(1) + ' years');
+const commas = (n) => (n == null ? '?' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+function when(t) {
+const d = new Date(t * 1000), n = new Date(), hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+if (d.toDateString() === n.toDateString()) return hm;
+if (n - d < 6 * 86400000) return d.toLocaleDateString('en', { weekday: 'long' });
+return d.toLocaleDateString('en', { day: 'numeric', month: 'short' });
+}
+function ago(s) { return s < 90 ? 'a minute ago' : s < 5400 ? Math.round(s / 60) + ' minutes ago' : s < 129600 ? Math.round(s / 3600) + ' hours ago' : Math.round(s / 86400) + ' days ago'; }
+const FAN = { low: 'turning slowly', medium: 'at half speed', high: 'turning fast', max: 'at full speed' };
+const fp4 = (fp) => (fp || '').split(':').slice(0, 4).join(' ');
+const K = new Uint32Array([0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+function sha256(m) {
+const H = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+const l = m.length, n = ((l + 9 + 63) >> 6) << 6, b = new Uint8Array(n), w = new Uint32Array(64), v = new DataView(b.buffer);
+b.set(m); b[l] = 0x80; v.setUint32(n - 8, Math.floor(l / 536870912)); v.setUint32(n - 4, (l << 3) >>> 0);
+for (let o = 0; o < n; o += 64) {
+for (let i = 0; i < 16; i++) w[i] = v.getUint32(o + i * 4);
+for (let i = 16; i < 64; i++) { const x = w[i - 15], y = w[i - 2]; w[i] = (w[i - 16] + ((x >>> 7 | x << 25) ^ (x >>> 18 | x << 14) ^ (x >>> 3)) + w[i - 7] + ((y >>> 17 | y << 15) ^ (y >>> 19 | y << 13) ^ (y >>> 10))) | 0; }
+let a = H[0], bb = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+for (let i = 0; i < 64; i++) {
+const t1 = (h + ((e >>> 6 | e << 26) ^ (e >>> 11 | e << 21) ^ (e >>> 25 | e << 7)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+const t2 = (((a >>> 2 | a << 30) ^ (a >>> 13 | a << 19) ^ (a >>> 22 | a << 10)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0;
+h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0;
+}
+H[0] += a; H[1] += bb; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += h;
+}
+const out = new Uint8Array(32), ov = new DataView(out.buffer);
+for (let i = 0; i < 8; i++) ov.setUint32(i * 4, H[i]);
+return out;
+}
+function cat() { let n = 0; for (const a of arguments) n += a.length; const o = new Uint8Array(n); n = 0; for (const a of arguments) { o.set(a, n); n += a.length; } return o; }
+function rep(a, len) { const o = new Uint8Array(len); for (let i = 0; i < len; i++) o[i] = a[i % a.length]; return o; }
+const B64 = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+function crypt5(password, salt) {
+const enc = new TextEncoder(), pw = enc.encode(password), sl = enc.encode(salt).slice(0, 16), n = pw.length;
+const B = sha256(cat(pw, sl, pw));
+let ctx = cat(pw, sl, rep(B, n));
+for (let i = n; i > 0; i >>= 1) ctx = cat(ctx, i & 1 ? B : pw);
+const A = sha256(ctx), P = rep(sha256(rep(pw, n * n)), n), S = rep(sha256(rep(sl, sl.length * (16 + A[0]))), sl.length);
+let C = A;
+for (let r = 0; r < 5000; r++) C = sha256(cat(r & 1 ? P : C, r % 3 ? S : new Uint8Array(0), r % 7 ? P : new Uint8Array(0), r & 1 ? C : P));
+let out = '';
+const put = (v, k) => { while (k--) { out += B64[v & 63]; v >>= 6; } };
+[[0, 10, 20], [21, 1, 11], [12, 22, 2], [3, 13, 23], [24, 4, 14], [15, 25, 5], [6, 16, 26], [27, 7, 17], [18, 28, 8], [9, 19, 29]].forEach((t) => put(C[t[0]] << 16 | C[t[1]] << 8 | C[t[2]], 4));
+put(C[31] << 8 | C[30], 3);
+return '$5$' + salt + '$' + out;
+}
+function hashNew(password) {                       // null when this browser gets the specification's own test vector wrong
+if (crypt5('Hello world!', 'saltstring') !== '$5$saltstring$5B8vYYiY.CVt1RlTTf8KbXBH3hsxY/GNooZaBBGWEc5') return null;
+const r = new Uint8Array(16); crypto.getRandomValues(r);
+let salt = ''; r.forEach((x) => { salt += B64[x & 63]; });
+return crypt5(password, salt);
+}
+const DENIED = { denied: true };
+let sid = Z, rid = 0;
+try { sid = sessionStorage.getItem('ex4-sid') || Z; } catch (e) { }
+function setSid(s) { sid = s || Z; try { if (s) sessionStorage.setItem('ex4-sid', s); else sessionStorage.removeItem('ex4-sid'); } catch (e) { } }
+async function rpc(calls, as) {                    // [[method, args, object?], ...] -> [reply or null, ...]
+const body = calls.map((c) => ({ jsonrpc: '2.0', id: ++rid, method: 'call', params: [as || sid, c[2] || 'ex4', c[0], c[1] || {}] }));
+const r = await fetch('/ubus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store', credentials: 'omit' });
+if (!r.ok) throw new Error('http ' + r.status);
+const j = await r.json();
+return j.map((x) => { if (x.error) { if (x.error.code === -32002) throw DENIED; return null; } return x.result && x.result[0] === 0 ? (x.result[1] || {}) : null; });
+}
+const call = async (m, a, as) => (await rpc([[m, a]], as))[0];
+let S = null, page = 'overview', inApp = false, setup = null;
+const slow = {}, WIN = 300, samples = [];          // slow parts by name: { rev, data }; five minutes of samples
+const PARTS = { overview: ['events', 'disks'], storage: ['disks', 'array'], shares: ['shares', 'users'], users: ['users'], services: ['services'], alerts: ['alerts'], panel: ['panel'], system: ['system'], more: [] };
+const REVOF = { events: 'events', disks: 'disks', array: 'disks', shares: 'shares', users: 'users', services: 'services', alerts: 'alerts', panel: 'panel', system: 'system' };
+const TITLES = { overview: 'Overview', storage: 'Storage', shares: 'Shares', users: 'Users', services: 'Services', alerts: 'Alerts', panel: 'Front panel', system: 'System', more: 'More' };
+const dirty = {}, watched = {};
+let toastT;
+function toast(msg, bad) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); clearTimeout(toastT); toastT = setTimeout(() => { t.textContent = ''; }, bad ? 9000 : 3200); }
+let dlgOk = null;
+function ask(title, kids, okLabel, onOk, danger) {
+txt('dlg-h', title); fill($('dlg-b'), kids); txt('dlg-err', '');
+const ok = $('dlg-ok'); ok.textContent = okLabel || 'Save'; ok.className = 'btn ' + (danger ? 'danger' : 'primary'); ok.disabled = false;
+dlgOk = onOk; $('dlg').showModal();
+const first = $('dlg-b').querySelector('input,select'); if (first) first.focus(); else ok.focus();
+}
+$('dlg-no').addEventListener('click', () => $('dlg').close());
+$('dlg-f').addEventListener('submit', async (e) => {
+e.preventDefault();
+const ok = $('dlg-ok'); ok.disabled = true;
+let err = 'The box did not answer.';
+try { err = await dlgOk(); } catch (x) { if (x === DENIED) { $('dlg').close(); return toDoor('Signed out. Sign in again to go on.'); } }
+ok.disabled = false;
+if (err) txt('dlg-err', err); else { $('dlg').close(); poll(true); }
+});
+async function act(method, args, done) {           // a write: null when the box took it, else the sentence to show
+const r = await call(method, args);
+if (!r || !r.ok) return (r && r.msg) || (r && r.err === 'wait' ? 'Too many tries. Wait ' + r.wait_s + ' s.' : 'The box refused that.');
+if (r.job) watched[r.job] = done || 'Done.';
+return null;
+}
+let hintN = 0;
+function field(label, input, hint) {                // a label holding its control; the hint sits beside it, tied on by aria-describedby
+const id = hint ? 'hint' + (++hintN) : null; if (id) input.setAttribute('aria-describedby', id);
+input.setAttribute('data-f', label);
+return el('div', { 'class': 'lab' }, [el('label', {}, [label, input]), hint ? el('span', { 'class': 'hint', id, text: hint }) : null]);
+}
+function input(type, value, attrs) { const i = el('input', Object.assign({ type }, attrs || {})); if (value != null) i.value = value; return i; }
+function select(options, value) { const s = el('select', {}, options.map((o) => el('option', { value: o[0], text: o[1] }))); s.value = value; return s; }
+function check(label, on) { const c = el('input', { type: 'checkbox' }); c.checked = !!on; return { box: c, node: el('label', { 'class': 'inline' }, [c, el('span', { text: label })]) }; }
+function bayOf(dev) { const d = (S.disks || []).find((x) => x.dev === dev); return d ? d.bay : '?'; }
+function arrWord(a) { return !a ? 'not open' : a.state === 'readonly' || a.ro ? 'whole and open read-only' : a.state === 'clean' ? 'clean' : a.state === 'active' ? 'in step and in use' : a.state; }
+function sentence() {
+const h = S.health, why = h.why, by = (c) => why.find((w) => w.c === c), a = S.array, c = S.clim, nd = (S.disks || []).length;
+const moving = mib(S.net.rx) > 1 ? 'A copy is arriving at about ' + Math.round(mib(S.net.rx)) + ' MiB/s. ' : mib(S.net.tx) > 1 ? 'A copy is leaving at about ' + Math.round(mib(S.net.tx)) + ' MiB/s. ' : 'Nothing is moving. ';
+const rest = (c && c.hot != null ? c.hot + ' °C at the warmest and the fan ' + (FAN[c.fan] || c.fan) + '.' : 'No word from the fan controller yet.');
+const watch = why.filter((w) => w.c === 'disk_watch');
+const w0 = watch[0], seen = w0 ? (w0.pending ? 'met ' + num(w0.pending) + plural(w0.pending, ' sector', ' sectors') + ' it could not read' : w0.realloc ? 'has moved ' + num(w0.realloc) + plural(w0.realloc, ' sector', ' sectors') + ' to its spares' : 'reported an error it could not correct') : '';
+let x;
+if (h.level === 'down') return ['The array is down.', 'The array cannot be read as it is. Do not pull or swap disks. Look at Storage, then at the log; your files are most likely still on the disks.'];
+if ((x = by('disk_failed'))) return ['A disk has failed.', 'The disk in bay ' + (x.bay || '?') + ' has dropped out. Your files are still safe: the others hold everything. Replace that disk; until then there is no spare.'];
+if ((x = by('rebuild'))) {
+const left = x.pct != null && x.speed_kb && a ? (1 - x.pct / 100) * a.size_kb / Math.max(1, a.disks - 1) / x.speed_kb : null;
+return ['The array is rebuilding.', (x.pct != null ? x.pct + '% done' : 'Under way') + (left ? ', about ' + dur(left) + ' to go' : '') + '. Your files are safe and you can keep using the box; it will be slower until this is done.'];
+}
+if ((x = by('hot'))) return ['The box is running hot.', 'The warmest disk is at ' + x.temp + ' °C and the fan is ' + (c ? FAN[c.fan] || c.fan : 'unknown') + '. Check that the vents are clear and the room is not too warm.'];
+if (by('fan_stopped')) return ['The fan has stopped.', 'The fan was told to turn and is not turning. Shut the box down until that is looked at; disks do not like heat.'];
+if (w0) return [watch.length > 1 ? cap(num(watch.length)) + ' disks want watching.' : 'One disk wants watching.',
+'The disk in bay ' + w0.bay + ' ' + seen + '. ' + (a ? 'The array is still whole and your files are safe. ' : '') + 'Nothing to do today; if the count grows, replace that disk.'];
+if (by('full')) return ['The volume is nearly full.', 'Less than 3% is free. Nothing is lost; make room when you can.'];
+if (by('micro_silent')) return ['The front panel is not answering.', 'The fan runs at full speed to be safe. ' + moving];
+if (h.level === 'closed') return ['The array is not open.', 'The disks are in their bays and nothing on them is being touched. This boot has not opened the array, so there is nothing to share yet. ' + rest];
+return ['All is well.', moving + cap(num(nd)) + plural(nd, ' disk', ' disks') + ' healthy, the array is ' + arrWord(a) + ', ' + rest.charAt(0).toLowerCase() + rest.slice(1)];
+}
+function chip(kind, text) { return el('li', { 'class': 'chip ' + kind }, [kind === 'good' ? icon('ok') : kind ? icon('warn') : null, el('span', { text })]); }
+function rOverview() {
+const st = sentence(), c = S.clim, a = S.array, v = S.vol, dl = S.disks || [], bad = dl.filter((d) => d.v === 'watch' || d.v === 'fail');
+txt('say', st[0]); txt('lede', st[1]);
+D.title = S.name + ' · ' + st[0].replace(/\.$/, '').toLowerCase();
+txt('upfor', 'up ' + dur(S.up));
+const facts = [];
+facts.push(!a ? chip('', 'Array not open') : a.degraded ? chip('crit', 'Array on ' + num(a.disks - a.degraded) + ' of ' + num(a.disks)) : chip('good', a.ro ? 'Array whole, read-only' : 'Array clean'));
+if (bad.length) bad.forEach((d) => facts.push(chip(d.v === 'fail' ? 'crit' : 'warn', 'Bay ' + d.bay + (d.v === 'fail' ? ' failed' : ' wants watching'))));
+else if (dl.length) facts.push(chip('good', dl.length + ' of ' + dl.length + ' disks healthy'));
+if (c && c.hot != null) { const ts = Object.values(c.disks); facts.push(chip('', Math.min.apply(null, ts) + ' to ' + c.hot + ' °C')); facts.push(chip('', 'Fan ' + c.fan + (c.rpm != null ? ' · ' + commas(c.rpm) + ' rpm' : ''))); }
+fill($('facts'), facts);
+const busy = mib(S.io.rd + S.io.wr) > 1, lines = [String(S.name).slice(0, 16), S.addr || location.hostname];
+const lc = $('lcd').children; lc[0].textContent = lines[0]; lc[1].textContent = lines[1];
+$('lcd').setAttribute('aria-label', 'Front screen: ' + lines.join(', '));
+fill($('bays'), dl.map((d) => el('div', { 'class': 'bay', title: 'Bay ' + d.bay + (d.temp != null ? ', ' + d.temp + ' °C' : '') + (d.v === 'watch' ? ', wants watching' : d.v === 'fail' ? ', failed' : '') },
+[el('span', { 'class': 'led' + (d.v === 'fail' ? ' crit' : d.v === 'watch' ? ' warn' : busy && !reduce ? ' busy' : '') }), el('b', { text: String(d.bay) }), el('span', { text: d.temp != null ? d.temp + '°' : '' })])));
+const rx = mib(S.net.rx), tx = mib(S.net.tx), cpu = S.cpu == null ? 0 : Math.round(S.cpu * 100);
+txt('k-in', f1(rx)); txt('k-out', f1(tx)); txt('k-cpu', String(cpu)); meter('m-cpu', cpu, cpu);
+fill($('act-state'), rx > 1 || tx > 1 ? [el('span', { 'class': 'dot s1' }), el('span', { text: rx >= tx ? 'A copy is arriving' : 'A copy is leaving' })] : [el('span', { text: 'Nothing is moving' })]);
+txt('act-note', cpu > 90 ? 'The processor is the limit here: one core, fully used. This is as fast as this box can move a file.' : 'One core, mostly resting.');
+rChart(); rTable();
+if (v.mounted && v.total_kb) {
+const pct = 100 * v.used_kb / v.total_kb;
+fill($('cap-big'), [size(v.free_kb).split(' ')[0], el('small', { text: size(v.free_kb).split(' ')[1] + ' free' })]);
+meter('m-cap', Math.max(pct, 0.6), Math.round(pct), size(v.used_kb) + ' used of ' + size(v.total_kb));
+txt('cap-note', size(v.used_kb) + ' used of ' + size(v.total_kb) + '. ' + (a && a.level === 'raid5' ? cap(num(a.disks)) + ' disks as RAID 5: any one of them can fail and nothing is lost.' : ''));
+} else { fill($('cap-big'), ['—']); meter('m-cap', 0, 0); txt('cap-note', v.mounted ? 'Free space has not been read yet; the box looks every five minutes.' : 'The data volume is not open.'); }
+if (c && c.hot != null) {
+fill($('clim-big'), [String(c.hot), el('small', { text: '°C at the warmest disk' })]); meter('m-temp', (c.hot - 20) * 2.5, c.hot);
+kvs('clim-kv', [['Fan', cap(c.fan || '?') + (c.rpm != null ? ' · ' + commas(c.rpm) + ' rpm' : '')], c.board != null && ['Board', c.board + ' °C'], ['Counts as hot at', '55 °C']]);
+} else { fill($('clim-big'), ['—']); meter('m-temp', 0, 20); kvs('clim-kv', [['Fan', 'no word from its controller']]); }
+const full = (slow.disks && slow.disks.data.disks) || [];
+fill($('disks'), dl.map((d) => { const f = full.find((x) => x.dev === d.dev) || {};
+return el('li', {}, [el('span', { 'class': 'bayn', text: String(d.bay), 'aria-label': 'Bay ' + d.bay }), el('div', { 'class': 't' }, [el('b', { text: String(f.model || d.dev).replace(/^WDC /, '') }), el('span', { text: (d.temp != null ? d.temp + ' °C · ' : '') + (f.hours != null ? years(f.hours) + ' running' : '') })]), health(d)]); }));
+if (!dl.length) fill($('disks'), [el('li', { 'class': 'empty', text: 'No disks are seen.' })]);
+const up = (S.ports || []).find((p) => p.up);
+fill($('net-big'), up && up.speed ? [String(up.speed >= 1000 ? up.speed / 1000 : up.speed), el('small', { text: (up.speed >= 1000 ? 'Gb/s' : 'Mb/s') + ' link' })] : ['—']);
+kvs('net-kv', [['Address', S.addr || location.hostname], S.lan && ['Given by', S.lan.mode === 'static' ? 'a fixed setting here' : 'your router']].concat((S.ports || []).map((p, i) => ['Port ' + (i + 1), p.up ? 'connected' : 'no cable']),
+[S.lan && S.lan.bond !== 'none' && ['The two ports', 'work as one, the second a spare'], ['Name on the network', S.name + '.local']]));
+rEvents();
+}
+function health(d) { return d.v === 'fail' ? state('crit', 'Failed') : d.v === 'watch' ? state('warn', 'Wants watching') : d.v === 'ok' ? state('good', 'Healthy') : state('', 'Not read yet'); }
+let cross = -1;
+const cx = { x0: 0, x1: 1 };
+function rChart() {
+const svg = $('svg'), w = Math.max(280, svg.clientWidth || 600), h = 190, L = 34, R = 58, T = 24, B = 24, now = S.now;
+const pts = samples.filter((p) => p.t >= now - WIN), max = Math.max.apply(null, [0].concat(pts.map((p) => Math.max(p.rx, p.tx))));
+const top = max < 4 ? 5 : max < 20 ? 25 : Math.ceil(max / 25) * 25;
+const x = (t) => L + (w - L - R) * (1 - (now - t) / WIN), y = (v) => T + (h - T - B) * (1 - v / top);
+svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h); svg.textContent = '';
+[0, top / 2, top].forEach((t) => { svg.appendChild(sv('line', { 'class': 'grid-l', x1: L, x2: w - R, y1: y(t), y2: y(t) })); svg.appendChild(sv('text', { x: L - 8, y: y(t) + 4, 'text-anchor': 'end' }, String(t))); });
+svg.appendChild(sv('text', { x: L, y: h - 5 }, '5 min ago')); svg.appendChild(sv('text', { x: w - R, y: h - 5, 'text-anchor': 'end' }, 'now')); svg.appendChild(sv('text', { x: L - 26, y: 11 }, 'MiB/s'));
+const line = (k) => { let d = '', last = 0; pts.forEach((p) => { d += (d && p.t - last <= 12 ? 'L' : 'M') + x(p.t).toFixed(1) + ' ' + y(p[k]).toFixed(1); last = p.t; }); return d; };
+if (pts.length > 1) {
+svg.appendChild(sv('path', { 'class': 'a1', d: line('rx').replace(/M/g, (m, i) => (i ? 'L' : 'M')) + 'L' + x(pts[pts.length - 1].t).toFixed(1) + ' ' + y(0) + 'L' + x(pts[0].t).toFixed(1) + ' ' + y(0) + 'Z' }));
+svg.appendChild(sv('path', { 'class': 'l2', d: line('tx') })); svg.appendChild(sv('path', { 'class': 'l1', d: line('rx') }));
+}
+const lastp = pts[pts.length - 1];
+if (lastp) {
+let e1 = y(lastp.rx), e2 = y(lastp.tx);
+if (Math.abs(e1 - e2) < 15) { if (e1 <= e2) e2 = e1 + 15; else e1 = e2 + 15; }     // two end labels never sit on each other
+[['rx', 'cs1', e1], ['tx', 'cs2', e2]].forEach((s) => { svg.appendChild(sv('circle', { 'class': 'end ' + s[1], cx: x(lastp.t), cy: y(lastp[s[0]]), r: 4.5 })); svg.appendChild(sv('text', { 'class': 'tfill', x: x(lastp.t) + 10, y: s[2] + 4 }, f1(lastp[s[0]]))); });
+}
+const tip = $('tip'), p = cross >= 0 ? pts[Math.min(cross, pts.length - 1)] : null;
+if (p) {
+const sec = now - p.t, whenS = sec < 2 ? 'now' : sec < 60 ? sec + ' s ago' : Math.floor(sec / 60) + ' min ' + (sec % 60 ? sec % 60 + ' s ' : '') + 'ago';
+svg.appendChild(sv('line', { 'class': 'cross', x1: x(p.t), x2: x(p.t), y1: T, y2: h - B }));
+svg.appendChild(sv('circle', { 'class': 'end cs1', cx: x(p.t), cy: y(p.rx), r: 4.5 })); svg.appendChild(sv('circle', { 'class': 'end cs2', cx: x(p.t), cy: y(p.tx), r: 4.5 }));
+tip.hidden = false;
+fill(tip, [el('div', { 'class': 'when', text: whenS }), el('div', { 'class': 'row' }, [el('i', { 'class': 'key' }), el('span', { text: 'Arriving' }), el('b', { text: f1(p.rx) })]), el('div', { 'class': 'row' }, [el('i', { 'class': 'key k2' }), el('span', { text: 'Leaving' }), el('b', { text: f1(p.tx) })])]);
+const px = x(p.t), tw = tip.offsetWidth || 140; tip.style.left = Math.max(0, Math.min(w - tw, px + (px > w / 2 ? -tw - 12 : 12))) + 'px';
+$('hit').setAttribute('aria-valuetext', whenS + ': arriving ' + f1(p.rx) + ', leaving ' + f1(p.tx) + ' MiB/s');
+} else tip.hidden = true;
+txt('chart-sum', lastp ? 'Megabytes per second over five minutes. Now arriving ' + f1(lastp.rx) + ', leaving ' + f1(lastp.tx) + '. Highest ' + f1(max) + '.' : 'No samples yet.');
+cx.x0 = L; cx.x1 = w - R; cx.n = pts.length; cx.pts = pts; cx.now = now;
+}
+function rTable() {
+if (!$('act-tbl').open) return;
+const pts = cx.pts || [], rows = [];
+for (let i = pts.length - 1, last = Infinity; i >= 0; i--) if (last - pts[i].t >= 30) { last = pts[i].t; const s = cx.now - pts[i].t; rows.push(el('tr', {}, [el('td', { text: s < 2 ? 'now' : s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago' }), el('td', { 'class': 'num', text: f1(pts[i].rx) }), el('td', { 'class': 'num', text: f1(pts[i].tx) })])); }
+fill($('tbody'), rows);
+}
+(function () {
+const hit = $('hit'), set = (i) => { cross = Math.max(0, Math.min((cx.n || 1) - 1, i)); if (S) rChart(); };
+hit.addEventListener('pointermove', (e) => { const r = hit.getBoundingClientRect(), t = cx.now - WIN * (1 - (e.clientX - r.left - cx.x0) / (cx.x1 - cx.x0)); let best = 0; (cx.pts || []).forEach((p, i) => { if (Math.abs(p.t - t) < Math.abs(cx.pts[best].t - t)) best = i; }); set(best); });
+hit.addEventListener('pointerleave', () => { if (D.activeElement !== hit) { cross = -1; if (S) rChart(); } });
+hit.addEventListener('focus', () => { if (cross < 0) set((cx.n || 1) - 1); });
+hit.addEventListener('blur', () => { cross = -1; if (S) rChart(); });
+hit.addEventListener('keydown', (e) => {
+const d = { ArrowLeft: -1, ArrowRight: 1, PageUp: -15, PageDown: 15 }[e.key];
+if (d) { e.preventDefault(); set((cross < 0 ? (cx.n || 1) - 1 : cross) + d); }
+else if (e.key === 'Home') { e.preventDefault(); set(0); } else if (e.key === 'End') { e.preventDefault(); set((cx.n || 1) - 1); }
+else if (e.key === 'Escape') { cross = -1; if (S) rChart(); }
+});
+$('act-tbl').addEventListener('toggle', rTable);
+if (window.ResizeObserver) new ResizeObserver(() => { if (S && page === 'overview') rChart(); }).observe($('chart'));
+})();
+const SVC = { smb: ['Windows and Mac file sharing', 'SMB. What a PC or a Mac opens in its file manager.'], nfs: ['Unix file sharing', 'NFS, for Linux and other Unix machines. Exports are set on the Shares page.'],
+find: ['Seen on the network', 'Lets Windows (WS-Discovery) and Macs (Bonjour) list this box by name.'], ssh: ['Secure shell', 'For its owner, by key only. No password opens it.'], time: ['Clock from the network', 'Keeps the time right (NTP).'] };
+function evWords(e) {
+const a = e.a || {}, on = (b) => (b ? 'on' : 'off');
+switch (e.k) {
+case 'claimed': return ['This box was claimed', 'administrator ' + a.admin];
+case 'signin': return ['Signed in', 'to this page'];
+case 'signin_fail': return ['Sign-in failed ' + a.n + ' times in a row', 'the door is slowing down'];
+case 'lock_cleared': return ['Sign-in lock-out cleared', 'by a button on the box'];
+case 'claim_locked': return ['Five wrong setup codes', 'the box made a new code'];
+case 'share_add': return ['Share added', a.name + (a.made ? ' · a new folder was made' : '')];
+case 'share_set': return ['Share changed', a.name];
+case 'share_remove': return ['Share removed', a.name + ' · its folder and files stay'];
+case 'export_add': return ['NFS export added', a.share + ' to ' + a.clients];
+case 'export_remove': return ['NFS export removed', a.share];
+case 'user_add': return ['Person added', a.name];
+case 'user_passwd': return ['Password changed', 'for ' + a.name];
+case 'user_remove': return ['Person removed', a.name];
+case 'group_add': return ['Group added', a.name];
+case 'group_remove': return ['Group removed', a.name];
+case 'service_set': return [(SVC[a.id] || [a.id])[0] + ' switched ' + on(a.on), ''];
+case 'alerts_set': return ['Alerts changed', 'now ' + on(a.on)];
+case 'alert_test': return [a.ok ? 'Test e-mail handed to the mail server' : 'Test e-mail was refused', a.ok ? '' : 'check the server settings'];
+case 'system_set': return ['Name or clock changed', a.name || a.zone || ''];
+case 'net_set': return ['New network settings on trial', a.mode === 'static' ? 'a fixed address' : 'address from the router'];
+case 'net_confirm': case 'net_kept': return ['New network settings kept', ''];
+case 'net_rollback': return ['Network settings taken back', 'nobody confirmed the new ones'];
+case 'cert_renew': return ['A new certificate was made', ''];
+case 'power': return [a.what === 'restart' ? 'Restart asked for' : 'Shutdown asked for', 'from this page'];
+case 'trial_stay': return ['Trial told to stay', 'no automatic return'];
+case 'keeper_passwd': return ['Administrator password changed', ''];
+case 'signout_all': return ['Signed out everywhere', ''];
+case 'disk_watch': return ['Bay ' + bayOf(a.dev) + ' wants watching', (a.pending ? a.pending + ' unreadable' : '') + (a.pending && a.realloc ? ', ' : '') + (a.realloc ? a.realloc + ' moved' : '') + plural((a.pending || 0) + (a.realloc || 0), ' sector', ' sectors')];
+case 'disk_fail': return ['Bay ' + bayOf(a.dev) + ' reports it is failing', 'replace that disk'];
+case 'array_down': return ['The array went down', ''];
+case 'array_degraded': return ['A disk dropped out of the array', 'files are still safe'];
+case 'array_rebuild': return ['The array began to rebuild', ''];
+case 'array_ok': return ['The array is whole again', ''];
+case 'hot': return ['A disk reached 55 °C', 'check the vents']; case 'cool': return ['Temperatures are back to normal', ''];
+case 'space_low': return ['The volume is ' + a.pct + '% full', ''];
+default: return [e.k.replace(/_/g, ' '), ''];
+}
+}
+function rEvents() {
+const ev = ((slow.events && slow.events.data.events) || []).slice(-6).reverse();
+fill($('events'), ev.length ? ev.map((e) => { const w = evWords(e); return el('li', {}, [el('span', { 'class': 'time', text: when(e.t) }), el('div', { 'class': 't' }, [el('b', { text: w[0] }), w[1] ? el('span', { text: w[1] }) : null])]); }) : [el('li', { 'class': 'empty', text: 'Nothing has happened yet.' })]);
+}
+function rStorage() {
+const A = slow.array && slow.array.data, dl = (slow.disks && slow.disks.data.disks) || [];
+if (!A) return;
+const a = A.array, v = A.vol, n = a ? a.members.length : 0;
+if (a) {
+const bad = a.members.filter((m) => m.state.indexOf('in_sync') < 0), act = { recover: 'Rebuilding', resync: 'Resyncing', check: 'Being checked', repair: 'Being repaired', reshape: 'Reshaping' }[a.action];
+fill($('arr-state'), [state(bad.length || a.degraded ? 'warn' : 'good', act ? act + (a.pct != null ? ', ' + a.pct + '%' : '') : a.degraded ? 'Running on ' + num(a.disks - a.degraded) + ' of ' + num(a.disks) + ' disks' : 'Whole, all ' + num(a.disks) + ' in step')]);
+fill($('arr-big'), [a.level.replace(/^raid/, 'RAID '), el('small', { text: size(a.size_kb) + ' across ' + num(a.disks) + ' disks' })]);
+fill($('members'), a.members.map((m) => { const d = dl.find((x) => x.dev === m.dev) || {}; return el('div', { 'class': m.state.indexOf('in_sync') < 0 ? 'out' : d.v === 'watch' ? 'watch' : '', text: 'Bay ' + (m.bay || '?') }); }));
+const anyW = dl.some((d) => d.v === 'watch');
+fill($('arr-legend'), [el('span', {}, [el('i'), 'in step']), anyW ? el('span', {}, [el('i', { 'class': 'w' }), 'in step, disk wants watching']) : null, bad.length ? el('span', {}, [el('i', { 'class': 'o' }), 'not in step']) : null]);
+kvs('arr-kv', [['If one disk fails', a.level === 'raid5' ? 'nothing is lost; replace it and the array rebuilds' : 'see the level\'s own rules'],
+['Array checks', 'never started by this system on its own' + (a.mismatch ? '; last count of mismatches: ' + a.mismatch : '')],
+['Open', a.ro ? 'read-only: nothing can be written to it' + (S.trial ? ' in this trial' : '') : 'read-write'],
+['File system', v.mounted ? 'mounted at ' + v.path + (v.rw ? '' : ', read-only') : 'not mounted'],
+['Layout', a.chunk_kb + ' KiB chunks, metadata ' + a.meta + (a.bitmap ? ', write-intent bitmap' : ', no write-intent bitmap')]]);
+} else {
+fill($('arr-state'), [state('', 'Not open')]); fill($('arr-big'), ['—']); fill($('members'), []); fill($('arr-legend'), []);
+kvs('arr-kv', [['Why', 'this boot has not assembled the array; the disks are untouched'], ['Array checks', 'never started by this system on its own']]);
+}
+if (v.mounted && v.total_kb) {
+const pct = 100 * v.used_kb / v.total_kb;
+fill($('vol-big'), [pct < 1 ? '<1' : String(Math.round(pct)), el('small', { text: '% used' })]); meter('m-vol', Math.max(pct, 0.6), Math.round(pct));
+kvs('vol-kv', [['Used', size(v.used_kb)], ['Free', size(v.free_kb)], ['Total', size(v.total_kb)]]);
+} else { fill($('vol-big'), ['—']); meter('m-vol', 0, 0); kvs('vol-kv', [['Volume', v.mounted ? 'not measured yet' : 'not open']]); }
+const read = dl.map((d) => d.smart_t).filter(Boolean);
+txt('dt-age', read.length ? 'Health read ' + ago(S.now - Math.min.apply(null, read)) + ', without waking a sleeping disk' : 'Health has not been read yet; the box asks every half hour');
+const open = {}; $('dtable').querySelectorAll('.xbtn[aria-expanded="true"]').forEach((b) => { open[b.getAttribute('aria-controls')] = 1; });
+const rows = [];
+dl.forEach((d) => {
+const id = 'dd' + d.bay, btn = el('button', { 'class': 'xbtn', type: 'button', 'aria-expanded': open[id] ? 'true' : 'false', 'aria-controls': id }, [icon('chev'), el('span', { text: 'Bay ' + d.bay })]);
+const tr = el('tr', {}, [el('td', { 'class': 'first' }, [btn]), el('td', { 'data-l': 'Disk' }, [el('b', { 'class': 'b6', text: d.model || d.dev }), el('span', { 'class': 'muted small nowrap', text: d.serial ? ' ' + d.serial : '' })]),
+el('td', { 'class': 'num', 'data-l': 'Temperature', text: d.temp != null ? d.temp + ' °C' : '?' }), el('td', { 'class': 'num', 'data-l': 'Running', text: years(d.hours) }),
+el('td', { 'class': 'num', 'data-l': 'Moved sectors', text: d.realloc == null ? '?' : String(d.realloc) }), el('td', { 'class': 'num', 'data-l': 'Unreadable', text: d.pending == null ? '?' : String(d.pending) }), el('td', { 'data-l': 'Health' }, [health(d)])]);
+const cells = [['Power-on hours', commas(d.hours)], ['Start/stop count', commas(d.starts)], ['Head load cycles', commas(d.load)], ['Reallocated sectors', commas(d.realloc)], ['Pending sectors', commas(d.pending)], ['Uncorrectable', commas(d.uncorrect)],
+['Interface errors', commas(d.crc)], ['Size', (d.size_b / 1e12).toFixed(1) + ' TB (' + size(d.size_b / 1024) + ' as a file manager counts)'], ['In the array', d.member ? d.member.replace('in_sync', 'in step') : 'not a member'],
+['The drive\'s own verdict', d.passed == null ? 'not read' : d.passed ? 'passed' : 'FAILING'], ['Device', '/dev/' + d.dev]];
+const det = el('tr', { 'class': 'detail', id, hidden: !open[id] }, [el('td', { colspan: '7' }, [el('div', { 'class': 'smart' }, cells.map((c) => el('div', {}, [el('span', { text: c[0] }), el('b', { text: c[1] })])))])]);
+btn.addEventListener('click', () => { const o = btn.getAttribute('aria-expanded') === 'true'; btn.setAttribute('aria-expanded', String(!o)); det.hidden = o; });
+rows.push(tr, det);
+});
+fill($('dtable'), rows.length ? rows : [el('tr', {}, [el('td', { colspan: '7', 'class': 'empty', text: 'No disks are seen.' })])]);
+}
+function whoText(s) {
+const nm = (w) => (w.charAt(0) === '@' ? 'the ' + w.slice(1) + ' group' : w), list = (a) => a.map(nm).join(', ');
+const p = [];
+if (s.guest === 'rw') p.push('Everyone may read and change it');
+else if (s.guest === 'ro') p.push('Everyone may read it');
+if (s.rw.length && s.guest !== 'rw') p.push(list(s.rw) + ' may change it');
+if (s.ro.length && s.guest === 'no') p.push(list(s.ro) + ' may read it');
+return p.length ? p.join('; ') + '.' : 'Nobody can open it yet.';
+}
+function shareForm(s, U) {
+const names = U.users.map((u) => u.name).concat(U.groups.map((g) => '@' + g.name));
+const guest = select([['no', 'only the people below'], ['ro', 'everyone may read'], ['rw', 'everyone may read and change']], s.guest);
+const sels = names.map((w) => [w, select([['', 'no access'], ['ro', 'may read'], ['rw', 'may change']], s.rw.indexOf(w) >= 0 ? 'rw' : s.ro.indexOf(w) >= 0 ? 'ro' : '')]);
+const tm = check('A Time Machine target for Macs', s.tm);
+const who = el('div', { 'class': 'who' }, [].concat.apply([], sels.map((x) => { x[1].setAttribute('aria-label', 'Access for ' + x[0]); return [el('span', { text: x[0].charAt(0) === '@' ? x[0].slice(1) + ' (group)' : x[0] }), x[1]]; })));
+return { nodes: [field('Without a password', guest), names.length ? el('div', { 'class': 'lab' }, ['People and groups', who]) : el('p', { 'class': 'hint', text: 'No people yet. Add them on the Users page to give single persons access.' }), tm.node],
+read: () => ({ guest: guest.value, rw: sels.filter((x) => x[1].value === 'rw').map((x) => x[0]), ro: sels.filter((x) => x[1].value === 'ro').map((x) => x[0]), tm: tm.box.checked }) };
+}
+function rShares() {
+const d = slow.shares && slow.shares.data, U = (slow.users && slow.users.data) || { users: [], groups: [] };
+if (!d) return;
+const v = d.volume, canNew = v.mounted && v.rw && v.gate;
+txt('sh-note', !v.mounted ? 'The data volume is not open, so nothing can be offered yet. What is set here is kept for when it is.' : !v.rw ? 'The volume is open read-only' + (S.trial ? ' for this trial' : '') + ': folders that are already there can be shared, to read. New folders and writing need it read-write.' : !v.gate ? 'Sharing folders that exist works now. Making a NEW folder writes to the array and needs the owner\'s read-write token on the box.' : '');
+fill($('sh-list'), d.shares.length ? d.shares.map((s) => {
+const nx = d.exports.filter((e) => e.share === s.name).length;
+const change = el('button', { 'class': 'btn small', type: 'button', text: 'Change' }), rm = el('button', { 'class': 'btn small', type: 'button', text: 'Remove' });
+change.setAttribute('aria-label', 'Change the share ' + s.name); rm.setAttribute('aria-label', 'Remove the share ' + s.name);
+change.addEventListener('click', () => { const f = shareForm(s, U); ask('Change ' + s.name, f.nodes, 'Save', () => act('share_set', Object.assign({ name: s.name }, f.read()), 'Share saved.')); });
+rm.addEventListener('click', () => ask('Stop offering ' + s.name + '?', [el('p', { text: 'The share goes away' + (nx ? ', and its ' + num(nx) + plural(nx, ' NFS export', ' NFS exports') + ' with it' : '') + '. The folder and every file in it stay on the disks, untouched.' })], 'Remove the share', () => act('share_remove', { name: s.name }, 'Share removed. Its folder stays.'), true));
+return el('li', {}, [el('div', {}, [el('div', { 'class': 'nm', text: s.name }), el('div', { 'class': 'ds' }, [el('span', { text: whoText(s) }), d.engine ? el('span', { 'class': 'badge', text: 'SMB' }) : null, nx ? el('span', { 'class': 'badge', text: 'NFS' }) : null, s.tm ? el('span', { 'class': 'badge acc', text: 'Time Machine' }) : null, s.exists ? null : el('span', { 'class': 'badge', text: v.mounted ? 'folder missing' : 'waiting for the volume' })])]), el('div', { 'class': 'ac' }, [change, rm])]);
+}) : [el('li', { 'class': 'empty', text: 'No folder is offered yet.' })]);
+$('sh-add').onclick = () => {
+const opts = d.folders.map((f) => [f, f + ' (already on the volume)']); if (canNew) opts.push(['', 'a new folder…']);
+if (!opts.length) return toast(v.mounted ? 'Every folder on the volume is already shared, and a new one cannot be made while it is read-only.' : 'The data volume is not open.', true);
+const pick = select(opts, opts[0][0]), name = input('text', '', { maxlength: 32, spellcheck: 'false' }), nl = field('Name of the new folder', name, 'Letters, digits, spaces, dots, dashes, underscores.'), f = shareForm({ guest: 'no', rw: [], ro: [], tm: false }, U);
+nl.hidden = pick.value !== ''; pick.addEventListener('change', () => { nl.hidden = pick.value !== ''; });
+ask('Add a share', [field('Folder', pick, 'A share is always a folder directly on the data volume, with the share\'s name.'), nl].concat(f.nodes), 'Add the share', () => act('share_add', Object.assign({ name: pick.value || name.value.trim() }, f.read()), 'Share added.'));
+};
+const sq = { root: 'root becomes nobody', all: 'everyone becomes nobody', none: 'root stays root' };
+const exForm = (e) => { const cl = input('text', e.clients, { 'class': 'mono', spellcheck: 'false', placeholder: '192.0.2.0/24' }), ac = select([['ro', 'may read'], ['rw', 'may read and change']], e.access), s2 = select([['root', 'root on the client becomes nobody (usual)'], ['all', 'every client user becomes nobody'], ['none', 'root on the client stays root (trusting)']], e.squash);
+return { nodes: [field('Machines that may mount it', cl, 'One address, a range like 192.0.2.0/24, or * for any machine that can reach this box.'), field('They', ac), field('Who they are here', s2)], read: () => ({ clients: cl.value.trim(), access: ac.value, squash: s2.value }) }; };
+fill($('ex-list'), d.exports.length ? d.exports.map((e) => {
+const change = el('button', { 'class': 'btn small', type: 'button', text: 'Change', 'aria-label': 'Change the export of ' + e.share + ' to ' + e.clients }), rm = el('button', { 'class': 'btn small', type: 'button', text: 'Remove', 'aria-label': 'Remove the export of ' + e.share + ' to ' + e.clients });
+change.addEventListener('click', () => { const f = exForm(e); ask('Change the export of ' + e.share, f.nodes, 'Save', () => act('export_set', Object.assign({ id: e.id }, f.read()), 'Export saved.')); });
+rm.addEventListener('click', () => ask('Remove this export?', [el('p', { text: e.share + ' will no longer be mountable over NFS from ' + e.clients + '. The share itself and its files stay.' })], 'Remove the export', () => act('export_remove', { id: e.id }, 'Export removed.'), true));
+return el('li', {}, [el('div', {}, [el('div', { 'class': 'nm', text: e.share }), el('div', { 'class': 'ds' }, [el('span', { text: 'to ' + (e.clients === '*' ? 'any machine' : e.clients) + ' · ' + (e.access === 'rw' && v.rw ? 'read and change' : 'read only') + ' · ' + sq[e.squash] })])]), el('div', { 'class': 'ac' }, [change, rm])]);
+}) : [el('li', { 'class': 'empty', text: d.nfs ? 'Nothing is exported over NFS.' : 'Nothing is exported. This image has no NFS server; exports set here wait for one.' })]);
+$('ex-add').onclick = () => {
+if (!d.shares.length) return toast('Add a share first; an export offers a share over NFS.', true);
+const sh = select(d.shares.map((s) => [s.name, s.name]), d.shares[0].name), f = exForm({ clients: '', access: 'ro', squash: 'root' });
+ask('Add an NFS export', [field('Share', sh)].concat(f.nodes), 'Add the export', () => act('export_add', Object.assign({ share: sh.value }, f.read()), 'Export added.'));
+};
+}
+function twoPass(min) {
+const p1 = input('password', '', { autocomplete: 'new-password' }), p2 = input('password', '', { autocomplete: 'new-password' });
+return { nodes: [el('div', { 'class': 'two' }, [field('Password', p1), field('Once more', p2)]), el('p', { 'class': 'hint', text: num(min).replace(/^./, (c) => c.toUpperCase()) + ' characters or more.' })],
+bad: () => (p1.value.length < min ? 'The password needs ' + min + ' characters or more.' : p1.value !== p2.value ? 'The two passwords are not the same.' : null), value: () => p1.value };
+}
+function rUsers() {
+const d = slow.users && slow.users.data;
+if (!d) return;
+txt('adm-name', d.admin || '');
+fill($('us-list'), d.users.length ? d.users.map((u) => {
+const gs = d.groups.filter((g) => g.members.indexOf(u.name) >= 0), pw = el('button', { 'class': 'btn small', type: 'button', text: 'Password', 'aria-label': 'Change the password of ' + u.name }), rm = el('button', { 'class': 'btn small', type: 'button', text: 'Remove', 'aria-label': 'Remove ' + u.name });
+pw.addEventListener('click', () => { const t = twoPass(8); ask('A new password for ' + u.name, t.nodes, 'Set the password', () => t.bad() || act('user_passwd', { name: u.name, password: t.value() }, 'Password set.')); });
+rm.addEventListener('click', () => ask('Remove ' + u.name + '?', [el('p', { text: u.name + ' will no longer open any share. Files ' + u.name + ' made stay where they are.' })], 'Remove', () => act('user_remove', { name: u.name }, 'Removed.'), true));
+return el('li', {}, [el('div', {}, [el('div', { 'class': 'nm', text: u.name }), el('div', { 'class': 'ds' }, gs.length ? gs.map((g) => el('span', { 'class': 'badge', text: g.name })) : [el('span', { text: 'in no group' })])]), el('div', { 'class': 'ac' }, [pw, rm])]);
+}) : [el('li', { 'class': 'empty', text: 'Nobody yet. Shares open to everyone need no people.' })]);
+$('us-add').onclick = () => { const n = input('text', '', { maxlength: 31, autocapitalize: 'none', spellcheck: 'false', autocomplete: 'off' }), t = twoPass(8);
+ask('Add a person', [field('Name', n, 'Lower-case letters, digits, dashes, underscores; starts with a letter.')].concat(t.nodes), 'Add', () => t.bad() || act('user_add', { name: n.value.trim(), password: t.value() }, 'Person added.')); };
+const members = (cur) => { const cs = d.users.map((u) => [u.name, check(u.name, cur.indexOf(u.name) >= 0)]); return { node: d.users.length ? el('div', { 'class': 'checks' }, cs.map((c) => c[1].node)) : el('p', { 'class': 'hint', text: 'There are no people to put in it yet.' }), read: () => cs.filter((c) => c[1].box.checked).map((c) => c[0]) }; };
+fill($('gr-list'), d.groups.length ? d.groups.map((g) => {
+const ed = el('button', { 'class': 'btn small', type: 'button', text: 'Members', 'aria-label': 'Change the members of ' + g.name }), rm = el('button', { 'class': 'btn small', type: 'button', text: 'Remove', 'aria-label': 'Remove the group ' + g.name });
+ed.addEventListener('click', () => { const m = members(g.members); ask('Who is in ' + g.name + '?', [m.node], 'Save', () => act('group_set', { name: g.name, members: m.read() }, 'Group saved.')); });
+rm.addEventListener('click', () => ask('Remove the group ' + g.name + '?', [el('p', { text: 'Its people stay; shares that named the group no longer do.' })], 'Remove', () => act('group_remove', { name: g.name }, 'Group removed.'), true));
+return el('li', {}, [el('div', {}, [el('div', { 'class': 'nm', text: g.name }), el('div', { 'class': 'ds' }, [el('span', { text: g.members.length ? g.members.join(', ') : 'empty' })])]), el('div', { 'class': 'ac' }, [ed, rm])]);
+}) : [el('li', { 'class': 'empty', text: 'No groups. A group lets a share name several people at once.' })]);
+$('gr-add').onclick = () => { const n = input('text', '', { maxlength: 31, autocapitalize: 'none', spellcheck: 'false' }), m = members([]);
+ask('Add a group', [field('Name', n, 'Lower-case letters, digits, dashes, underscores.'), el('div', { 'class': 'lab' }, ['Members', m.node])], 'Add', () => act('group_add', { name: n.value.trim(), members: m.read() }, 'Group added.')); };
+}
+$('adm-pass').addEventListener('click', () => {
+const old = input('password', '', { autocomplete: 'current-password' }), t = twoPass(12);
+ask('Change the administrator\'s password', [field('Current password', old)].concat(t.nodes), 'Change it', async () => {
+if (t.bad()) return t.bad();
+const h = hashNew(t.value()); if (!h) return 'This browser got a test of its own arithmetic wrong, so it must not make a password. Use another browser.';
+const r = await call('keeper_passwd', { old: old.value, hash: h });
+return r && r.ok ? (toast('Password changed.'), null) : (r && r.wait_s ? 'Not right. Wait ' + r.wait_s + ' s before the next try.' : (r && r.msg) || 'The box refused that.');
+});
+});
+$('adm-out').addEventListener('click', () => ask('Sign out everywhere?', [el('p', { text: 'Every browser signed in to this box, this one included, has to sign in again.' })], 'Sign out everywhere', async () => { const r = await call('signout_all'); if (r && r.ok) { $('dlg').close(); toDoor('Signed out everywhere.'); } return r && r.ok ? null : 'The box refused that.'; }, true));
+function rServices() {
+const d = slow.services && slow.services.data;
+if (!d) return;
+fill($('sv-list'), d.list.map((s) => {
+const w = SVC[s.id] || [s.id, ''], c = el('input', { type: 'checkbox', 'aria-label': w[0] }), lock = s.id === 'ssh' && d.trial && s.enabled;
+c.checked = s.enabled; c.disabled = !s.present || lock;
+c.addEventListener('change', async () => { c.disabled = true; let e; try { e = await act('service_set', { id: s.id, enabled: c.checked }, w[0] + (c.checked ? ' is on.' : ' is off.')); } catch (x) { e = 'The box did not answer.'; } if (e) { toast(e, true); c.checked = !c.checked; c.disabled = false; } poll(true); });
+const st = !s.present ? 'Not in this image' : s.running === true ? 'Running' + (s.rss_kb ? ' · holds ' + size(s.rss_kb) : '') : s.running === false ? (s.enabled ? 'On, not running' : 'Stopped') : s.enabled ? 'On' : 'Off';
+return el('div', { 'class': 'svc' }, [el('div', {}, [el('div', { 'class': 'nm b6', text: w[0] }), el('div', { 'class': 'hint', text: w[1] + (lock ? ' Stays on during a trial: it is how the trial is watched.' : '') })]), el('span', { 'class': 'st', text: st }), el('span', { 'class': 'switch' }, [c, el('i')])]);
+}));
+}
+const EVS = [['disk', 'A disk reports trouble'], ['raid', 'The array changes state'], ['temp', 'The box runs hot'], ['space', 'Space runs low']];
+const evBoxes = EVS.map((e) => { const c = check(e[1], false); $('al-ev').appendChild(c.node); return [e[0], c.box]; });
+function rAlerts() {
+const d = slow.alerts && slow.alerts.data;
+if (!d || dirty.alerts) return;
+$('al-on').checked = d.enabled; $('al-to').value = d.to; $('al-from').value = d.from; $('al-host').value = d.host; $('al-port').value = d.port; $('al-tls').value = d.tls; $('al-user').value = d.user; $('al-pct').value = d.space_pct; $('al-pass').value = '';
+evBoxes.forEach((b) => { b[1].checked = d.events.indexOf(b[0]) >= 0; });
+txt('al-h-pass', d.has_pass ? 'A password is stored. Leave this empty to keep it. It is never shown and never sent back to a browser.' : 'Stored on the box in a file only it can read. For Gmail and the like, an app password.');
+txt('al-last', !d.sender ? 'This image has no mail program (msmtp), so nothing can be sent yet; the settings are kept.' : d.last ? 'Last message: ' + (d.last.ok ? 'taken by the mail server' : 'REFUSED by the mail server') + ', ' + when(d.last.t) + '.' : 'No message has been sent yet.');
+}
+$('al-form').addEventListener('input', () => { dirty.alerts = 1; });
+$('al-form').addEventListener('submit', async (e) => {
+e.preventDefault();
+const a = { enabled: $('al-on').checked, tls: $('al-tls').value, events: evBoxes.filter((b) => b[1].checked).map((b) => b[0]) };
+[['to', 'al-to'], ['from', 'al-from'], ['host', 'al-host'], ['user', 'al-user']].forEach((f) => { const v = $(f[1]).value.trim(); if (v || f[0] === 'user') a[f[0]] = v; });
+if ($('al-port').value) a.port = +$('al-port').value; if ($('al-pct').value) a.space_pct = +$('al-pct').value; if ($('al-pass').value) a.password = $('al-pass').value;
+let err; try { err = await act('alerts_set', a, 'Alerts saved.'); } catch (x) { err = x === DENIED ? (toDoor('Signed out. Sign in again to go on.'), '') : 'The box did not answer.'; }
+txt('al-err', err || ''); if (!err) { dirty.alerts = 0; delete slow.alerts; poll(true); }
+});
+$('al-test').addEventListener('click', async () => { if (dirty.alerts) return txt('al-err', 'Save first, then test what was saved.'); let e; try { e = await act('alerts_test', {}, 'The mail server took the test message.'); } catch (x) { e = 'The box did not answer.'; } txt('al-err', e || ''); if (!e) toast('Sending a test message…'); poll(true); });
+const SENT = { name: 'Name', ip1: 'Address, port 1', ip2: 'Address, port 2', fw: 'Version', health: 'Drives', free: 'Free space', used: 'Used, percent', vol: 'Volume', fan: 'Fan', temp: 'Temperatures', usb: 'USB disk', lcd: 'Screen', standby: 'Sleeps after' };
+function rPanel() {
+const d = slow.panel && slow.panel.data;
+if (!d) return;
+const ks = Object.keys(d.sent);
+fill($('pn-sent'), ks.length ? ks.map((k) => el('div', {}, [el('span', { text: SENT[k] || k }), el('b', { text: d.sent[k] })])) : [el('div', {}, [el('span', { text: !d.daemon ? 'The panel program is not running.' : d.on ? 'Switched on. The panel program has not sent the fields yet.' : 'The screen is being sent nothing.' })])]);
+txt('pn-age', ks.length ? 'The screen turns its own pages; this page cannot see which one is up.' : 'Switch “Feed the screen” on to show this system\'s numbers on it.');
+$('f-feed').checked = d.on; $('f-on').checked = d.lcd; $('f-bl').value = d.standby;
+txt('pn-note', 'The screen shows WD\'s own pages, fed with this system\'s numbers; its first line is the box\'s name (set under System). Whether “Screen on” means on, or never sleep, to the screen\'s own chip is settled by one look at the glass. Pages of our own, a live mirror here, the lights and “find this box” come once their hardware steps are proven on the bench.');
+}
+let pnT;
+async function panelSet(a) { let e; try { const r = await call('panel_set', a); e = r && r.ok ? null : (r && r.msg) || 'The box refused that.'; } catch (x) { e = 'The box did not answer.'; } txt('pn-saved', e || 'Saved.'); clearTimeout(pnT); pnT = setTimeout(() => txt('pn-saved', ''), 3000); }
+$('f-feed').addEventListener('change', (e) => panelSet({ on: e.target.checked }).then(() => poll(true)));
+$('f-on').addEventListener('change', (e) => panelSet({ lcd: e.target.checked }));
+$('f-bl').addEventListener('change', (e) => panelSet({ standby: e.target.value }));
+function rSystem() {
+const d = slow.system && slow.system.data;
+if (!d) return;
+const n = d.net;
+if (!dirty.sys) { $('sy-name').value = d.name; fill($('sy-zone'), d.zones.map((z) => el('option', { value: z, text: z.replace(/_/g, ' ') }))); $('sy-zone').value = d.zonename; }
+txt('sy-time', 'The box\'s clock reads ' + new Date(d.now * 1000).toUTCString().replace('GMT', 'UTC') + '.');
+if (!dirty.net) { $('net-mode').value = n.mode; $('net-addr').value = n.addr; $('net-mask').value = n.mask; $('net-gw').value = n.gw; $('net-dns').value = n.dns.join(' '); $('net-bond').value = n.bond; $('net-static').hidden = n.mode !== 'static'; }
+fill($('sy-live'), [el('span', { text: 'now ' + (n.live || location.hostname) })]);
+kvs('net-ports', n.ports.map((p, i) => ['Port ' + (i + 1), p.up ? 'connected' + (p.speed ? ', ' + (p.speed >= 1000 ? p.speed / 1000 + ' Gb/s' : p.speed + ' Mb/s') : '') : 'no cable']));
+const c = d.cert;
+kvs('cert-kv', c ? [['Fingerprint (SHA-256) begins', fp4(c.fp)], ['In full', c.fp], ['Made for', c.names.join(', ')], ['Made', when(c.made) + ', good for ' + Math.max(0, Math.round(c.days - (d.now - c.made) / 86400)) + ' days']] : [['Certificate', 'none made yet']]);
+txt('pow-note', d.trial ? 'This is a trial boot from memory. Restart returns the box to WD\'s firmware; nothing was installed. Shut down halts it; the fan stays at full speed until you switch the box off.' : 'Both stop sharing, flush, unmount the volume and stop the array first. After Shut down the fan stays at full speed until you switch the box off at its button.');
+kvs('about-kv', [['System', 'OpenWrt ' + (d.version.openwrt || '?')], ['Kernel', 'Linux ' + d.version.kernel], ['Interface', d.version.ui], ['Up for', dur(d.up)], ['Administrator', d.admin || '?']]);
+const u = d.update || {};
+const SIG = { good: 'good (key ' + (u.key || '?') + ')', bad: 'NOT GOOD: refused', none: 'none: refused' };
+const WHY = { expired: 'the release it found EXPIRED' + (u.expires ? ' on ' + u.expires.replace('T', ' ').replace('Z', ' UTC') : '') + '. Its signature is good, but it no longer vouches that it is the newest: the release address may be stale, or something is holding newer releases back. Ask for a fresh release.',
+clock: 'this box\'s clock is set before the release was built, so its expiry cannot be judged. Set the clock first.', downgrade: 'it is OLDER than what runs (a downgrade is never accepted)',
+badsig: 'its signature is not good, or is by a key this box does not hold', unsigned: 'it carries no signature', board: 'it is for another board', channel: 'it is for another channel' };
+const RES = { newer: 'a newer release is out: ' + (u.latest || '?'), current: 'this is the newest release', verified: 'newer release ' + (u.latest || '?') + ' checked, nothing kept',
+staged: 'release ' + (u.latest || '?') + ' checked and staged in memory (not installed)', refused: 'refused: ' + (WHY[u.why] || u.why || '?'), unreachable: 'the release address did not answer' };
+const stale = u.checked && d.now - u.checked > 30 * 86400;
+kvs('upd-kv', [['Running', (u.running || 'unknown') + (u.serial ? ' (serial ' + u.serial + ', ' + (u.channel || '?') + ')' : '')],
+['Signing keys held', u.keys ? String(u.keys) : 'none: every release would be refused'],
+['Last check', u.checked ? when(u.checked) + (u.from ? ', ' + u.from : '') : 'never'],
+u.checked ? ['Found', RES[u.result] || u.result || '?'] : null,
+u.checked ? ['Signature', SIG[u.sig] || u.sig || '?'] : null,
+u.checked && u.expires && u.result !== 'refused' ? ['Release good until', u.expires.replace('T', ' ').replace('Z', ' UTC')] : null,
+u.successor ? ['Key rotation', 'the release named key ' + u.successor + ' as the next signing key'] : null,
+stale ? ['Note', 'the last check is more than a month old: run “ex4-update check” over ssh'] : null]);
+}
+$('sy-form').addEventListener('input', () => { dirty.sys = 1; });
+$('sy-form').addEventListener('submit', async (e) => { e.preventDefault(); let err; try { err = await act('system_set', { hostname: $('sy-name').value.trim(), zonename: $('sy-zone').value }, 'Saved. A new name wants a new certificate.'); } catch (x) { err = 'The box did not answer.'; } txt('sy-err', err || ''); if (!err) { dirty.sys = 0; poll(true); } });
+$('net-form').addEventListener('input', () => { dirty.net = 1; $('net-static').hidden = $('net-mode').value !== 'static'; });
+$('net-form').addEventListener('submit', async (e) => {
+e.preventDefault();
+const a = { mode: $('net-mode').value, bond: $('net-bond').value };
+if (a.mode === 'static') { a.addr = $('net-addr').value.trim(); a.mask = $('net-mask').value.trim(); a.gw = $('net-gw').value.trim(); a.dns = $('net-dns').value.split(/[\s,]+/).filter(Boolean); }
+let err; try { err = await act('net_set', a, 'The new settings are on trial.'); } catch (x) { err = 'The box did not answer.'; }
+txt('net-err', err || ''); if (!err) { dirty.net = 0; poll(true); }
+});
+$('cert-new').addEventListener('click', () => ask('Make a new certificate?', [el('p', { text: 'The box makes a fresh certificate with its current name and restarts its web server. This page will stop for a few seconds, and your browser will warn you once more: compare the fingerprint it shows with the one on this page afterwards.' })], 'Make it', async () => { const e = await act('cert_renew', {}, 'A new certificate is in place.'); if (!e) setTimeout(() => location.reload(), 6000); return e; }));
+const power = (m, title, text, label) => ask(title, [el('p', { text })], label, () => act(m, {}, label + ' is under way.'), true);
+$('pow-restart').addEventListener('click', () => power('restart', 'Restart the box?', S.trial ? 'This is a trial: a restart goes back to WD\'s firmware. Sharing stops, the volume is unmounted and the array stopped first.' : 'Sharing stops, the volume is unmounted and the array stopped, then the box restarts. It is back in about a minute.', 'Restart'));
+$('pow-off').addEventListener('click', () => power('shutdown', 'Shut the box down?', 'Sharing stops, the volume is unmounted and the array stopped, then the system halts. The fan keeps turning at full speed until you switch the box off at its button; to start it again, press that button.', 'Shut down'));
+$('bun-make').addEventListener('click', async () => {
+const b = $('bun-make'); b.disabled = true;
+try {
+const r = await call('support_bundle'); if (!r || !r.ok) throw 0;
+for (let i = 0; i < 60; i++) { await new Promise((ok) => setTimeout(ok, 700)); const j = ((await call('status')).jobs || []).find((x) => x.id === r.job); if (j && j.state !== 'run' && j.state !== 'wait') break; }
+const t = await call('bundle_get'); if (!t || !t.ok) throw 0;
+const a = el('a', { href: URL.createObjectURL(new Blob([t.text], { type: 'text/plain' })), download: S.name + '-support-bundle.txt' }); D.body.appendChild(a); a.click(); a.remove();
+toast('Bundle saved by your browser.');
+} catch (x) { toast('The bundle could not be made.', true); }
+b.disabled = false;
+});
+function rStrips() {
+const t = S.trial;
+$('trial').hidden = !t;
+if (t) { fill($('trial-t'), t.stay ? [el('strong', { text: 'Trial boot, staying. ' }), 'Restart, or pull the plug, to go back to WD\'s firmware. Nothing is installed.'] : [el('strong', { text: 'Trial boot. ' }), 'Nothing is installed. This box returns to WD\'s firmware in ', el('strong', { text: mmss(t.left_s) }), '.']); $('stay').hidden = t.stay; }
+$('netp').hidden = S.net_pending == null;
+if (S.net_pending != null) fill($('netp-t'), [el('strong', { text: 'New network settings are on trial. ' }), 'Keep them within ' + mmss(S.net_pending) + ', or the old ones come back by themselves.']);
+txt('mk-name', S.name); txt('mk-addr', S.addr || location.hostname);
+}
+$('stay').addEventListener('click', async () => { try { const e = await act('trial_stay'); if (e) toast(e, true); poll(true); } catch (x) { } });
+$('netp-keep').addEventListener('click', async () => { try { const e = await act('net_confirm'); toast(e || 'Kept.', !!e); poll(true); } catch (x) { } });
+let timer = null, inflight = false, slowBy = 1;
+const RENDER = { overview: rOverview, storage: rStorage, shares: rShares, users: rUsers, services: rServices, alerts: rAlerts, panel: rPanel, system: rSystem, more: () => { } };
+function render() { if (!S) return; rStrips(); if (page !== 'overview') D.title = S.name + ' · ' + TITLES[page]; RENDER[page](); }
+async function poll(now) {
+clearTimeout(timer);
+if (!inApp || D.hidden) return;
+if (inflight) { if (now) timer = setTimeout(() => poll(true), 150); return; }
+inflight = true;
+const t0 = performance.now();
+try {
+const first = PARTS[page].filter((p) => !slow[p]), res = await rpc([['status']].concat(first.map((p) => [p])));
+const st = res[0]; if (!st) throw new Error('no status');
+S = st; first.forEach((p, i) => { if (res[i + 1]) slow[p] = { rev: st.rev[REVOF[p]], data: res[i + 1] }; });
+if (!samples.length || st.now > samples[samples.length - 1].t) samples.push({ t: st.now, rx: mib(st.net.rx), tx: mib(st.net.tx) });
+while (samples.length && samples[0].t < st.now - WIN - 10) samples.shift();
+const moved = PARTS[page].filter((p) => slow[p] && slow[p].rev !== st.rev[REVOF[p]]).concat(page === 'services' && first.indexOf('services') < 0 ? ['services'] : []);
+if (moved.length) { const r2 = await rpc(moved.map((p) => [p])); moved.forEach((p, i) => { if (r2[i]) slow[p] = { rev: st.rev[REVOF[p]], data: r2[i] }; }); }
+(st.jobs || []).forEach((j) => { if (watched[j.id] && (j.state === 'ok' || j.state === 'fail')) { toast(j.state === 'ok' ? watched[j.id] : 'That did not work: ' + (j.msg || 'the helper failed') + '.', j.state !== 'ok'); delete watched[j.id]; } });
+$('lost').hidden = true; $('dot').className = 'dot'; txt('heard', 'Live');
+render();
+slowBy = performance.now() - t0 > 500 ? Math.min(5, slowBy * 2) : 1;      // a slow box slows the asking, never the reverse
+} catch (e) {
+if (e === DENIED) { inflight = false; return toDoor('Signed out after a while away. Sign in again.'); }
+$('lost').hidden = false; txt('lost-t', 'The box is not answering. Trying again; what you see is the last it said.'); $('dot').className = 'dot stale'; txt('heard', 'Not reached');
+slowBy = Math.min(5, slowBy * 2);
+}
+inflight = false;
+timer = setTimeout(poll, Object.keys(watched).length ? 500 : (page === 'overview' ? 2000 : 5000) * slowBy);      // a job somebody is waiting for is looked at sooner
+}
+D.addEventListener('visibilitychange', () => { if (!D.hidden) poll(true); else clearTimeout(timer); });   // a hidden tab asks for nothing
+function route(first) {
+let k = (location.hash || '#overview').slice(1); if (!RENDER[k]) k = 'overview';
+page = k;
+D.querySelectorAll('.view').forEach((v) => { v.hidden = v.id !== 'v-' + k; });
+D.querySelectorAll('.nav a').forEach((a) => { const h = a.getAttribute('href').slice(1); if (h === k || (h === 'more' && ['users', 'services', 'alerts', 'panel', 'system'].indexOf(k) >= 0 && window.matchMedia('(max-width:860px)').matches)) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+if (!first) { $('main').focus({ preventScroll: true }); window.scrollTo(0, 0); }
+render(); poll(true);
+}
+window.addEventListener('hashchange', () => { if (inApp) route(false); });
+D.querySelector('.skip').addEventListener('click', (e) => { e.preventDefault(); (inApp ? $('main') : D.querySelector('.door main:not([hidden])')).focus(); });
+const root = D.documentElement, isDark = () => { const t = root.getAttribute('data-theme'); return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches; };
+try { const t = localStorage.getItem('ex4-theme'); if (t === 'dark' || t === 'light') root.setAttribute('data-theme', t); } catch (e) { }
+const themeLabel = () => txt('theme-l', isDark() ? 'Light' : 'Dark'); themeLabel();
+$('theme').addEventListener('click', () => { const t = isDark() ? 'light' : 'dark'; root.setAttribute('data-theme', t); try { localStorage.setItem('ex4-theme', t); } catch (e) { } themeLabel(); });
+const plain = location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+function show(which) { inApp = which === 'app'; $('app').hidden = !inApp; $('door').hidden = inApp; $('door-in').hidden = which !== 'in'; $('door-setup').hidden = which !== 'setup'; clearTimeout(timer); }
+function certFoot(id) { fill($(id), setup && setup.cert_fp ? ['This box\'s certificate begins ', el('span', { 'class': 'fp', text: fp4(setup.cert_fp) }), '. Your browser showed a fingerprint when it warned you; the two should match.'] : []); }
+function toDoor(msg) {
+setSid(null); S = null; for (const k in slow) delete slow[k];
+if ($('dlg').open) $('dlg').close();
+show('in'); D.title = (setup ? setup.name : 'ex4') + ' · sign in';
+txt('in-name', setup ? setup.name : 'ex4'); txt('in-host', location.host); txt('in-err', plain ? 'This page was opened without encryption. Open it as https:// to sign in.' : msg || ''); certFoot('in-foot');
+$('in-go').disabled = plain; $('in-pass').value = ''; ($('in-user').value ? $('in-pass') : $('in-user')).focus();
+}
+let waitT;
+function holdOff(btn, errId, s, msg) { clearInterval(waitT); let left = s; btn.disabled = true; const tick = () => { txt(errId, msg + ' Wait ' + left + ' s.'); if (left-- <= 0) { clearInterval(waitT); btn.disabled = false; txt(errId, ''); } }; tick(); waitT = setInterval(tick, 1000); }
+$('in-form').addEventListener('submit', async (e) => {
+e.preventDefault();
+const b = $('in-go'); if (b.disabled) return; b.disabled = true;
+try {
+const r = await call('sign_in', { username: $('in-user').value.trim(), password: $('in-pass').value }, Z);
+if (r && r.ok) { setSid(r.sid); $('in-pass').value = ''; b.disabled = false; return enter(); }
+if (r && r.wait_s) holdOff(b, 'in-err', r.wait_s, r.err === 'bad' || r.msg ? 'Name or password not right.' : 'Too many tries.'); else { txt('in-err', (r && r.msg) || 'Name or password not right.'); b.disabled = false; }
+} catch (x) { txt('in-err', 'The box did not answer.'); b.disabled = false; }
+});
+async function signOut() { try { await rpc([['destroy', {}, 'session']]); } catch (e) { } toDoor('Signed out.'); }
+$('signout').addEventListener('click', signOut); $('signout2').addEventListener('click', signOut);
+function toSetup() {
+show('setup'); D.title = 'A new box · make it yours';
+txt('su-host', location.host); $('su-name').value = setup.name; txt('su-local', setup.name + '.local'); certFoot('su-foot');
+if (plain) { txt('su-err', 'This page was opened without encryption. Open it as https:// to set a password.'); $('su-go').disabled = true; }
+$('su-code').focus();
+}
+$('su-name').addEventListener('input', (e) => txt('su-local', (e.target.value || 'ex4') + '.local'));
+$('su-form').addEventListener('submit', async (e) => {
+e.preventDefault();
+const b = $('su-go'); if (b.disabled) return;
+const code = $('su-code').value.trim(), name = $('su-name').value.trim(), user = $('su-user').value.trim(), p1 = $('su-p1').value, bad = (id, m) => { $(id).setAttribute('aria-invalid', 'true'); $(id).focus(); txt('su-err', m); };
+['su-code', 'su-name', 'su-user', 'su-p1', 'su-p2'].forEach((i) => $(i).removeAttribute('aria-invalid'));
+if (!/^\d{8}$/.test(code)) return bad('su-code', 'The code is eight digits.');
+if (!/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/.test(name)) return bad('su-name', 'The name is lower-case letters, digits and dashes, with no dash at either end.');
+if (!/^[a-z][a-z0-9_-]{0,30}$/.test(user) || user === 'root') return bad('su-user', 'The administrator\'s name is lower-case letters, digits, dashes or underscores, starts with a letter, and is not root.');
+if (p1.length < 12) return bad('su-p1', 'The password needs twelve characters or more.');
+if (p1 !== $('su-p2').value) return bad('su-p2', 'The two passwords are not the same.');
+b.disabled = true; txt('su-err', '');
+try {
+const hash = hashNew(p1);
+if (!hash) { txt('su-err', 'This browser got a test of its own arithmetic wrong, so it must not make a password. Use another browser.'); b.disabled = false; return; }
+const r = await call('setup_claim', { code, username: user, hash, hostname: name }, Z);
+if (r && r.ok) { const s = await call('sign_in', { username: user, password: p1 }, Z); setup.claimed = true; setup.name = name; $('su-p1').value = $('su-p2').value = ''; if (s && s.ok) { setSid(s.sid); return enter(); } $('in-user').value = user; return toDoor('The box is yours. Sign in.'); }
+if (r && r.err === 'wait') holdOff(b, 'su-err', r.wait_s, r.msg || 'Too many wrong codes.'); else { txt('su-err', (r && r.msg) || 'The box refused that.'); b.disabled = false; if (r && r.err === 'bad_code') { $('su-code').setAttribute('aria-invalid', 'true'); $('su-code').focus(); } }
+} catch (x) { txt('su-err', 'The box did not answer.'); b.disabled = false; }
+});
+function enter(st) {
+show('app'); S = st || null;
+const v = (setup && setup.ver) || {};
+txt('ver', 'OpenWrt ' + (v.openwrt || '') + ' · Linux ' + String(v.kernel || '').split('.').slice(0, 2).join('.') + (setup && setup.trial ? '\nrunning from memory' : ''));
+route(true);
+}
+(async function boot() {                           // one request: is the box claimed, and is the session this tab holds still good
+let st = null;
+try {
+const body = [{ jsonrpc: '2.0', id: 1, method: 'call', params: [Z, 'ex4', 'setup_state', {}] }, { jsonrpc: '2.0', id: 2, method: 'call', params: [sid, 'ex4', 'status', {}] }];
+const j = await (await fetch('/ubus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sid === Z ? body.slice(0, 1) : body), cache: 'no-store', credentials: 'omit' })).json();
+setup = j[0].result && j[0].result[0] === 0 ? j[0].result[1] : null;
+st = j[1] && j[1].result && j[1].result[0] === 0 ? j[1].result[1] : null;
+} catch (e) { setup = null; }
+if (!setup) { show('in'); txt('in-err', 'The box did not answer. Reload this page to try again.'); $('in-go').disabled = true; return; }
+if (!setup.claimed) return toSetup();
+if (st) return enter(st);
+toDoor('');
+})();
+})();</script>
+</body>
+</html>
