@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src '@SCRIPT_HASH@'; style-src '@STYLE_HASH@'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="dark light">
+<meta name="referrer" content="no-referrer">
+<title>ex4</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='1' width='12' height='14' rx='2' fill='%23141b23'/%3E%3Crect x='4' y='3' width='8' height='3' rx='.6' fill='%238fa8ff'/%3E%3C/svg%3E">
+<style>@CSS@</style>
+</head>
+<body>
+@SYMBOLS@
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- ======================= the two doors: first-boot setup, sign-in ======================= -->
+<div class="door" id="door" hidden>
+  <main class="door-card" id="door-in" tabindex="-1" hidden aria-labelledby="in-h">
+    <div class="door-mark"><div class="mark-glyph" aria-hidden="true"><i></i><b></b></div><div><div class="mark-name" id="in-name">ex4</div><div class="mark-sub" id="in-host"></div></div></div>
+    <h1 id="in-h">Sign in</h1>
+    <form class="form" id="in-form" autocomplete="on" novalidate>
+      <label>Name<input id="in-user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Password<input id="in-pass" type="password" autocomplete="current-password" required></label>
+      <p class="err" id="in-err" role="alert"></p>
+      <button class="btn primary" id="in-go" type="submit">Sign in</button>
+    </form>
+    <p class="foot" id="in-foot"></p>
+  </main>
+
+  <main class="door-card wide" id="door-setup" tabindex="-1" hidden aria-labelledby="su-h">
+    <div class="door-mark"><div class="mark-glyph" aria-hidden="true"><i></i><b></b></div><div><div class="mark-name">A new box</div><div class="mark-sub" id="su-host"></div></div></div>
+    <h1 id="su-h">Make this box yours.</h1>
+    <p class="lede">It has no account and no default password. Whoever can read the code on the box itself becomes its administrator.</p>
+    <form id="su-form" autocomplete="off" novalidate>
+      <ol class="steps">
+        <li><h2 id="su-l1">The code from the box</h2>
+          <input class="mono wcode" id="su-code" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code" aria-labelledby="su-l1" aria-describedby="su-h1" required>
+          <p class="hint" id="su-h1">Eight digits. Run <span class="fp">ex4-claim</span> over ssh to read them (the box also offers them to its front screen).</p></li>
+        <li><h2 id="su-l2">A name for the box</h2>
+          <input class="mono w16" id="su-name" type="text" maxlength="32" autocapitalize="none" spellcheck="false" aria-labelledby="su-l2" aria-describedby="su-h2" required>
+          <p class="hint" id="su-h2">Lower-case letters, digits and dashes. You will reach it as <span class="fp" id="su-local">ex4.local</span>.</p></li>
+        <li><h2>The administrator</h2>
+          <div class="form">
+            <label>Name<input id="su-user" type="text" maxlength="31" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+            <div class="two">
+              <label>Password<input id="su-p1" type="password" autocomplete="new-password" aria-describedby="su-h3" required></label>
+              <label>Once more<input id="su-p2" type="password" autocomplete="new-password" required></label>
+            </div>
+            <p class="hint" id="su-h3">Twelve characters or more. Only a scrambled form of it is sent now, and only that is stored: the box keeps no password it could give away.</p>
+          </div></li>
+      </ol>
+      <p class="err mt" id="su-err" role="alert"></p>
+      <button class="btn primary" id="su-go" type="submit">Claim this box</button>
+    </form>
+    <p class="foot" id="su-foot"></p>
+  </main>
+</div>
+
+<!-- ======================= the interface ======================= -->
+<div class="app" id="app" hidden>
+  <header class="rail">
+    <div class="mark">
+      <div class="mark-glyph" aria-hidden="true"><i></i><b></b></div>
+      <div><div class="mark-name" id="mk-name">ex4</div><div class="mark-sub" id="mk-addr"></div></div>
+    </div>
+    <nav class="nav" aria-label="Pages">
+      <a href="#overview"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span>Overview</span></a>
+      <a href="#storage"><svg class="i" aria-hidden="true"><use href="#i-disks"/></svg><span>Storage</span></a>
+      <a href="#shares"><svg class="i" aria-hidden="true"><use href="#i-folder"/></svg><span>Shares</span></a>
+      <a href="#users" class="minor"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Users</span></a>
+      <a href="#services" class="minor"><svg class="i" aria-hidden="true"><use href="#i-services"/></svg><span>Services</span></a>
+      <a href="#alerts" class="minor"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg><span>Alerts</span></a>
+      <a href="#panel" class="minor"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg><span>Front panel</span></a>
+      <a href="#system" class="minor"><svg class="i" aria-hidden="true"><use href="#i-system"/></svg><span>System</span></a>
+      <a href="#more" class="phone"><svg class="i" aria-hidden="true"><use href="#i-more"/></svg><span>More</span></a>
+    </nav>
+    <div class="rail-foot">
+      <button class="ghost" id="theme" type="button" aria-label="Switch between light and dark"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg><span id="theme-l">Dark</span></button>
+      <button class="ghost out" id="signout" type="button"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg><span>Sign out</span></button>
+      <p class="ver" id="ver"></p>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <div class="strip" id="trial" role="status" hidden>
+      <span id="trial-t"></span><span class="sp"></span>
+      <button class="btn small" id="stay" type="button">Stay</button>
+    </div>
+    <div class="strip warn" id="netp" role="status" hidden>
+      <span id="netp-t"></span><span class="sp"></span>
+      <button class="btn small primary" id="netp-keep" type="button">Keep it</button>
+    </div>
+    <div class="strip crit" id="lost" role="status" hidden><span id="lost-t"></span></div>
+
+    <!-- ======================= OVERVIEW ======================= -->
+    <section class="view" id="v-overview" hidden aria-labelledby="say">
+      <div class="hero">
+        <div>
+          <p class="eyebrow"><span class="dot" id="dot"></span><span id="heard">Live</span><span aria-hidden="true">·</span><span id="upfor"></span></p>
+          <h1 class="say" id="say" aria-live="polite">&nbsp;</h1>
+          <p class="lede" id="lede"></p>
+          <ul class="facts" id="facts"></ul>
+        </div>
+        <figure class="box" aria-label="The front of the box as it is now">
+          <div class="chassis">
+            <div class="top"><div class="lcd" id="lcd" role="img" aria-label="Front screen"><span></span><span></span></div></div>
+            <div class="bays" id="bays"></div>
+            <div class="base"><span class="led" id="pled"></span><span>EX4</span></div>
+          </div>
+          <figcaption id="box-cap">The front of the box, as it is now.</figcaption>
+        </figure>
+      </div>
+
+      <div class="grid">
+        <article class="card w8" aria-labelledby="h-act">
+          <div class="card-head"><h2 id="h-act">Activity, last five minutes</h2><span class="state" id="act-state"></span></div>
+          <div class="kpis">
+            <div class="kpi"><div class="lab"><i class="key"></i>Arriving</div><div class="val"><span id="k-in">0.0</span><small>MiB/s</small></div></div>
+            <div class="kpi"><div class="lab"><i class="key k2"></i>Leaving</div><div class="val"><span id="k-out">0.0</span><small>MiB/s</small></div></div>
+            <div class="kpi"><div class="lab">Processor</div><div class="val"><span id="k-cpu">0</span><small>% busy</small></div>
+              <div class="meter thin" id="m-cpu" role="meter" aria-label="Processor busy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>
+          </div>
+          <div class="chart" id="chart">
+            <svg id="svg" role="img" aria-labelledby="h-act chart-sum"></svg>
+            <div class="chart-hit" id="hit" tabindex="0" role="application" aria-label="Activity chart. Left and right arrows read values back in time."></div>
+            <div class="tip" id="tip" hidden></div>
+          </div>
+          <p class="vh" id="chart-sum"></p>
+          <p class="note" id="act-note"></p>
+          <details class="tbl" id="act-tbl"><summary>Show as a table</summary><table><thead><tr><th>When</th><th class="num">Arriving, MiB/s</th><th class="num">Leaving, MiB/s</th></tr></thead><tbody id="tbody"></tbody></table></details>
+        </article>
+
+        <div class="col">
+          <article class="card" aria-labelledby="h-cap">
+            <div class="card-head"><h2 id="h-cap">Space</h2><a class="more" href="#storage">Storage</a></div>
+            <div class="big" id="cap-big"></div>
+            <div class="meter" id="m-cap" role="meter" aria-label="Space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+            <p class="note" id="cap-note"></p>
+          </article>
+          <article class="card" aria-labelledby="h-clim">
+            <div class="card-head"><h2 id="h-clim">Climate</h2></div>
+            <div class="big" id="clim-big"></div>
+            <div class="meter" id="m-temp" role="meter" aria-label="Warmest disk, from 20 to 60 degrees" aria-valuemin="20" aria-valuemax="60" aria-valuenow="20"><i></i></div>
+            <dl class="kv mt" id="clim-kv"></dl>
+          </article>
+        </div>
+
+        <article class="card w5" aria-labelledby="h-disks">
+          <div class="card-head"><h2 id="h-disks">Disks</h2><a class="more" href="#storage">Details</a></div>
+          <ul class="rows" id="disks"></ul>
+        </article>
+        <article class="card" aria-labelledby="h-net">
+          <div class="card-head"><h2 id="h-net">Network</h2><a class="more" href="#system">Address</a></div>
+          <div class="big" id="net-big"></div>
+          <dl class="kv mt" id="net-kv"></dl>
+        </article>
+        <article class="card w3" aria-labelledby="h-ev">
+          <div class="card-head"><h2 id="h-ev">Lately</h2></div>
+          <ul class="rows" id="events"></ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ======================= STORAGE ======================= -->
+    <section class="view" id="v-storage" hidden aria-labelledby="st-h">
+      <div class="page-head"><h1 id="st-h">Storage</h1><p>One array, four disks. This page reads. In this version nothing here can create, reshape, check or erase anything: no such command exists in it.</p></div>
+      <div class="grid">
+        <article class="card w8" aria-labelledby="h-arr">
+          <div class="card-head"><h2 id="h-arr">The array</h2><span class="state" id="arr-state"></span></div>
+          <div class="big" id="arr-big"></div>
+          <div class="members" id="members" role="img" aria-label="Member disks by bay"></div>
+          <div class="legend" id="arr-legend"></div>
+          <dl class="kv mt2" id="arr-kv"></dl>
+        </article>
+        <article class="card" aria-labelledby="h-vol">
+          <div class="card-head"><h2 id="h-vol">Space</h2></div>
+          <div class="big" id="vol-big"></div>
+          <div class="meter" id="m-vol" role="meter" aria-label="Space used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+          <dl class="kv mt" id="vol-kv"></dl>
+          <p class="note">Sizes of single shares are not shown: counting them means reading every folder, and that would slow a copy.</p>
+        </article>
+        <article class="card w12" aria-labelledby="h-dt">
+          <div class="card-head"><h2 id="h-dt">Disks</h2><span class="note m0" id="dt-age"></span></div>
+          <table class="stack"><thead><tr><th>Bay</th><th>Disk</th><th class="num">Temperature</th><th class="num">Running</th><th class="num">Moved sectors</th><th class="num">Unreadable</th><th>Health</th></tr></thead><tbody id="dtable"></tbody></table>
+        </article>
+      </div>
+      <div class="calm"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><span>When replacing a disk comes to this page, it will ask for a button press on the box itself. A browser alone will never be enough to change what is on the disks.</span></div>
+    </section>
+
+    <!-- ======================= SHARES ======================= -->
+    <section class="view" id="v-shares" hidden aria-labelledby="sh-h">
+      <div class="page-head"><h1 id="sh-h">Shares</h1><p id="sh-p">Folders this box offers to the network.</p></div>
+      <div class="cards2">
+        <article class="card full" aria-labelledby="h-shl">
+          <div class="card-head"><h2 id="h-shl">Offered now</h2><button class="btn small primary" id="sh-add" type="button">Add a share</button></div>
+          <ul class="items" id="sh-list"></ul>
+          <p class="note" id="sh-note"></p>
+        </article>
+        <article class="card full" aria-labelledby="h-nfs">
+          <div class="card-head"><h2 id="h-nfs">NFS exports</h2><button class="btn small" id="ex-add" type="button">Add an export</button></div>
+          <ul class="items" id="ex-list"></ul>
+          <p class="note" id="ex-note">For Linux and other Unix machines. An export names a share and the machines that may mount it. WD's own firmware dropped NFS in an update; here it stays.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ======================= USERS ======================= -->
+    <section class="view" id="v-users" hidden aria-labelledby="us-h">
+      <div class="page-head"><h1 id="us-h">Users</h1><p>People who may open shares, the groups they belong to, and the one who runs this box.</p></div>
+      <div class="cards2">
+        <article class="card" aria-labelledby="h-ppl">
+          <div class="card-head"><h2 id="h-ppl">People</h2><button class="btn small primary" id="us-add" type="button">Add a person</button></div>
+          <ul class="items" id="us-list"></ul>
+        </article>
+        <article class="card" aria-labelledby="h-grp">
+          <div class="card-head"><h2 id="h-grp">Groups</h2><button class="btn small" id="gr-add" type="button">Add a group</button></div>
+          <ul class="items" id="gr-list"></ul>
+        </article>
+        <article class="card full" aria-labelledby="h-adm">
+          <div class="card-head"><h2 id="h-adm">The administrator</h2></div>
+          <ul class="items"><li><div><div class="nm" id="adm-name"></div><div class="ds">Signs in to this page. Not a share user, not a Unix account, and not root.</div></div>
+            <div class="ac"><button class="btn small" id="adm-pass" type="button">Change password</button><button class="btn small" id="adm-out" type="button">Sign out everywhere</button></div></li></ul>
+          <p class="note">Passwords are never shown and never stored readable. An administrator password leaves this page only as a scrambled hash.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ======================= SERVICES ======================= -->
+    <section class="view" id="v-services" hidden aria-labelledby="sv-h">
+      <div class="page-head"><h1 id="sv-h">Services</h1><p>What this box runs, and what each one holds in memory. Nothing here phones home; there is no cloud to switch off.</p></div>
+      <article class="card w12" aria-label="Services"><div id="sv-list"></div></article>
+    </section>
+
+    <!-- ======================= ALERTS ======================= -->
+    <section class="view" id="v-alerts" hidden aria-labelledby="al-h">
+      <div class="page-head"><h1 id="al-h">Alerts</h1><p>A box that fails in silence is no use. It can write to you when a disk, the array, the temperature or the free space needs you.</p></div>
+      <form class="cards2" id="al-form" novalidate>
+        <article class="card" aria-labelledby="h-alw">
+          <div class="card-head"><h2 id="h-alw">Write to me</h2><span class="switch"><input type="checkbox" id="al-on" aria-label="Send e-mail alerts"><i></i></span></div>
+          <div class="form">
+            <label>To<input id="al-to" type="email" autocomplete="email" spellcheck="false"></label>
+            <label>From<input id="al-from" type="email" spellcheck="false" aria-describedby="al-h-from"></label>
+            <p class="hint" id="al-h-from">The address the mail server lets this box send as.</p>
+            <fieldset><legend>When</legend><div class="checks" id="al-ev"></div></fieldset>
+            <label>Warn when the volume is this full, percent<input class="w8" id="al-pct" type="number" min="50" max="99" inputmode="numeric"></label>
+          </div>
+        </article>
+        <article class="card" aria-labelledby="h-als">
+          <div class="card-head"><h2 id="h-als">Through this mail server</h2></div>
+          <div class="form">
+            <div class="two"><label>Server<input id="al-host" type="text" spellcheck="false" autocapitalize="none" placeholder="smtp.example.org"></label>
+              <label>Port<input id="al-port" type="number" min="1" max="65535" inputmode="numeric"></label></div>
+            <label>Encryption<select id="al-tls"><option value="starttls">STARTTLS (port 587)</option><option value="tls">TLS from the start (port 465)</option><option value="none">none (only on your own network)</option></select></label>
+            <label>Account<input id="al-user" type="text" spellcheck="false" autocapitalize="none" autocomplete="off"></label>
+            <label>Password<input id="al-pass" type="password" autocomplete="new-password" aria-describedby="al-h-pass"></label>
+            <p class="hint" id="al-h-pass"></p>
+          </div>
+        </article>
+        <article class="card full">
+          <div class="row"><button class="btn primary" id="al-save" type="submit">Save</button><button class="btn" id="al-test" type="button">Send a test message</button><span class="err" id="al-err" role="alert"></span></div>
+          <p class="note" id="al-last"></p>
+        </article>
+      </form>
+    </section>
+
+    <!-- ======================= FRONT PANEL ======================= -->
+    <section class="view" id="v-panel" hidden aria-labelledby="pn-h">
+      <div class="page-head"><h1 id="pn-h">Front panel</h1><p>The little screen on the front: the box's name, its address, the state of the disks, free space, the fan and the temperatures. Changes apply as you make them.</p></div>
+      <div class="panel-grid">
+        <article class="card panel-stage" aria-labelledby="h-pnl">
+          <h2 id="h-pnl">What the screen was given</h2>
+          <div class="lcdlist" id="pn-sent"></div>
+          <p class="note center m0" id="pn-age"></p>
+        </article>
+        <article class="card">
+          <fieldset>
+            <legend>Screen</legend>
+            <div class="field"><span class="lbl" id="l-feed">Feed the screen<small>Off: the screen is sent nothing</small></span>
+              <span class="switch"><input type="checkbox" id="f-feed" aria-labelledby="l-feed"><i></i></span></div>
+            <div class="field"><span class="lbl" id="l-on">Screen on<small>Off saves a little power</small></span>
+              <span class="switch"><input type="checkbox" id="f-on" aria-labelledby="l-on"><i></i></span></div>
+            <div class="field"><label for="f-bl">Screen sleeps after</label>
+              <select id="f-bl"><option value="0">10 seconds</option><option value="3">5 minutes</option><option value="6">never</option></select></div>
+          </fieldset>
+          <p class="saved" id="pn-saved" role="status"></p>
+          <p class="note" id="pn-note"></p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ======================= SYSTEM ======================= -->
+    <section class="view" id="v-system" hidden aria-labelledby="sy-h">
+      <div class="page-head"><h1 id="sy-h">System</h1><p>Name, clock, address, certificate, power.</p></div>
+      <div class="cards2">
+        <article class="card" aria-labelledby="h-syn">
+          <div class="card-head"><h2 id="h-syn">Name and clock</h2></div>
+          <form class="form" id="sy-form" novalidate>
+            <label>Name of the box<input class="mono" id="sy-name" type="text" maxlength="32" autocapitalize="none" spellcheck="false"></label>
+            <label>Time zone<select id="sy-zone"></select></label>
+            <p class="hint" id="sy-time"></p>
+            <div class="row"><button class="btn primary" type="submit">Save</button><span class="err" id="sy-err" role="alert"></span></div>
+          </form>
+        </article>
+        <article class="card" aria-labelledby="h-syadr">
+          <div class="card-head"><h2 id="h-syadr">Address</h2><span class="state" id="sy-live"></span></div>
+          <form class="form" id="net-form" novalidate>
+            <label>The address comes<select id="net-mode"><option value="dhcp">from your router</option><option value="static">fixed, set here</option></select></label>
+            <div class="form" id="net-static" hidden>
+              <div class="two"><label>Address<input class="mono" id="net-addr" type="text" inputmode="decimal" placeholder="192.0.2.50"></label><label>Mask<input class="mono" id="net-mask" type="text" inputmode="decimal" placeholder="255.255.255.0"></label></div>
+              <div class="two"><label>Router<input class="mono" id="net-gw" type="text" inputmode="decimal" placeholder="192.0.2.1"></label><label>Name servers<input class="mono" id="net-dns" type="text" placeholder="192.0.2.1 9.9.9.9"></label></div>
+            </div>
+            <label>The two network ports<select id="net-bond"><option value="none">each on its own</option><option value="active-backup">as one, the second a spare</option></select></label>
+            <p class="hint">A change is tried for 90 seconds. Unless this page reaches the box again and you keep it, the old settings come back by themselves: a mistyped address cannot lock you out.</p>
+            <div class="row"><button class="btn primary" type="submit">Try these settings</button><span class="err" id="net-err" role="alert"></span></div>
+          </form>
+          <dl class="kv mt" id="net-ports"></dl>
+        </article>
+        <article class="card" aria-labelledby="h-sycert">
+          <div class="card-head"><h2 id="h-sycert">Certificate</h2></div>
+          <dl class="kv" id="cert-kv"></dl>
+          <p class="note">This box makes its own certificate, so a browser warns the first time. Compare the fingerprint it shows you with the one here; they must match. A new name wants a new certificate.</p>
+          <div class="actions"><button class="btn" id="cert-new" type="button">Make a new certificate</button></div>
+        </article>
+        <article class="card" aria-labelledby="h-sypow">
+          <div class="card-head"><h2 id="h-sypow">Power</h2></div>
+          <p class="note m0" id="pow-note"></p>
+          <div class="actions"><button class="btn" id="pow-restart" type="button">Restart</button><button class="btn" id="pow-off" type="button">Shut down</button></div>
+        </article>
+        <article class="card" aria-labelledby="h-sybun">
+          <div class="card-head"><h2 id="h-sybun">Support bundle</h2></div>
+          <p class="note m0">Logs to attach to a bug report, with addresses and serial numbers masked. It is made on the box and saved by your browser; it goes nowhere else.</p>
+          <div class="actions"><button class="btn" id="bun-make" type="button">Make and save a bundle</button></div>
+        </article>
+        <article class="card" aria-labelledby="h-syab">
+          <div class="card-head"><h2 id="h-syab">About</h2></div>
+          <dl class="kv" id="about-kv"></dl>
+        </article>
+        <article class="card" aria-labelledby="h-syupd">
+          <div class="card-head"><h2 id="h-syupd">Updates</h2></div>
+          <dl class="kv" id="upd-kv"></dl>
+          <p class="note">This box never looks for updates on its own and never calls anywhere by itself. Over ssh, “ex4-update check” asks the release address once; only a release signed with a key this box holds, for this board, newer than what runs and not past its expiry date, is ever accepted. Nothing is installed from here: a checked release is staged in memory and gone at the next start.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ======================= MORE (phones) ======================= -->
+    <section class="view" id="v-more" hidden aria-labelledby="mo-h">
+      <div class="page-head"><h1 id="mo-h">More</h1></div>
+      <article class="card w12"><nav class="more-list" aria-label="More pages">
+        <a href="#users"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Users</a>
+        <a href="#services"><svg class="i" aria-hidden="true"><use href="#i-services"/></svg>Services</a>
+        <a href="#alerts"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg>Alerts</a>
+        <a href="#panel"><svg class="i" aria-hidden="true"><use href="#i-panel"/></svg>Front panel</a>
+        <a href="#system"><svg class="i" aria-hidden="true"><use href="#i-system"/></svg>System</a>
+      </nav></article>
+      <div class="actions"><button class="btn" id="signout2" type="button">Sign out</button></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-h"><form id="dlg-f" novalidate>
+  <h2 id="dlg-h"></h2>
+  <div class="form" id="dlg-b"></div>
+  <p class="err" id="dlg-err" role="alert"></p>
+  <div class="row end"><button class="btn" id="dlg-no" type="button">Cancel</button><button class="btn primary" id="dlg-ok" type="submit">Save</button></div>
+</form></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>@JS@</script>
+</body>
+</html>
