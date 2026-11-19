@@ -1,0 +1,6 @@
+# What the update path puts into an image: source (under update/), destination, mode. build-v7.sh copies these
+# into the OpenWrt tree's files/ before the image is built. Two more files are MADE at that moment, not copied:
+#   /etc/ex4-release                   by `mkrelease.py ident` (board, version, serial, channel, openwrt, kernel)
+#   /etc/ex4-update/keys/<fingerprint> the public key below, renamed to its usign key number (usign -P needs that)
+box/ex4-update	/usr/sbin/ex4-update	0755
+keys/ex4-release.pub	/etc/ex4-update/keys/@FINGERPRINT@	0644
