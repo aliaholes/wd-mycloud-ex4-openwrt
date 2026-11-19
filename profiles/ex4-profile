@@ -1,0 +1,629 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# ex4-profile : "What's this NAS for?" (docs/PROFILES.md). Installed as /usr/sbin/ex4-profile; busybox ash + the image's
+# own uci. A profile is a small NAMED set of knobs from the allow-list below, on top of Balanced. Everything it sets is
+# live and reversible: kernel tunables in /proc and /sys, ext4 options by remount, Samba / ksmbd options in a marked
+# block of their config templates. NOTHING here can touch what is ON the disks' layout: no mkfs, no fsck, no tune2fs,
+# no mdadm, no journal option, no data= mode, no barrier change. A conf that names one is refused whole.
+#
+#   ex4-profile list                         the profiles
+#   ex4-profile show [PROFILE]               what PROFILE sets (knob, value, live or at mount, RAM held, why)
+#   ex4-profile diff PROFILE [--opt NAME]    what applying it would change on THIS box now, knob by knob
+#   ex4-profile apply PROFILE [--opt NAME]... [--bench]
+#                                            record the previous values (first time since boot), then set; on any
+#                                            failure the knobs already set go back and the old choice stays
+#   ex4-profile revert [--bench]             every knob back to the value it had before the first apply (byte-exact)
+#                                            (--bench, on apply and revert: the rw bench's own A/B; uci is not touched)
+#   ex4-profile current                      the chosen profile, what is set, what waits and why
+#   ex4-profile boot | reapply               apply the choice in /etc/config/ex4 again (at boot; after a mount)
+#   ex4-profile check CONF                   validate one conf file (exit 0 = clean)
+#   ex4-profile smbconf PROFILE [--opt N]    the Samba [global] lines it would add (for the rw bench's own smb.conf)
+#   ex4-profile ksmbdconf PROFILE            the same for ksmbd
+#   ex4-profile json                         rewrite /tmp/ex4/profile.json (what the web page reads)
+#
+# THE WALLS:
+#   1. ALLOW-LIST. A knob is applied only if this file knows it (knob_ok) and its value passes its pattern and range.
+#   2. FORBIDDEN WORDS. A `set` / `opt` line holding data= / barrier / journal / tune2fs / fsck / mkfs / mke2fs / mdadm /
+#      grow / reshape / level / raid-devices / superblock / resize / chunk / bitmap / sync_action / discard / errors=
+#      refuses the WHOLE profile before anything is read or written.
+#   3. RAM CAP. stripe_cache_size x 4 KiB x members must stay <= 32 MiB (EX4P_RAM_CAP_KIB), checked before any write.
+#   4. THE ARRAY'S FLAG. On a read-write md array that is idle ("clean"), writing stripe_cache_size makes md write its
+#      clean/dirty flag to all four superblocks (md_allow_write, drivers/md/md.c). So md knobs are set only when the
+#      array is read-only or already active; on a clean read-write array they WAIT (next read-only assembly), unless
+#      --bench is given inside a rw bench session (/tmp/ex4-rw-active), where the array is being written anyway.
+#   5. EXT4 ONLY BY REMOUNT, ONLY WHEN READ-WRITE: atime mode, lazytime, commit=N. A read-only mount (every trial:
+#      ro,noload) is never remounted: those knobs wait for a writable mount.
+#   6. ATOMIC ENOUGH. The values before this apply are saved first; any failed write puts back every knob already set.
+#   7. ONE TRUTH. The choice lives in uci (ex4.main.profile + list profile_opt), written only after a whole apply;
+#      the web page reads /tmp/ex4/profile.json, which this tool rewrites after every change.
+#
+# Tests (off the box): EX4P_ROOT=<fake "/"> (every file read and written under it; mount / smartctl / uci are found on
+# PATH, so tests put stubs there), EX4P_DIR=<the profiles folder>. With EX4P_ROOT set, two kernel behaviours are emulated
+# (the real kernel does them itself): dirty_bytes <-> dirty_ratio zero each other, and `scheduler` shows the offered
+# list with the active one in []. No service is reloaded.
+set -u
+trap '' PIPE
+ROOT=${EX4P_ROOT:-}
+PDIR=${EX4P_DIR:-/usr/share/ex4/profiles}
+RAMCAP=${EX4P_RAM_CAP_KIB:-32768}
+ST=$ROOT/tmp/ex4-profile
+JSON=$ROOT/tmp/ex4/profile.json
+PROFILES="balanced movies smallfiles backups"
+OPTS="spindown casesensitive"
+SMBT=/etc/samba/smb.conf.template
+KSMT=/etc/ksmbd/ksmbd.conf.template
+BEGIN_MARK='	# >>> ex4-profile (written by ex4-profile from the Storage page; do not edit by hand)'
+END_MARK='	# <<< ex4-profile'
+TAB=$(printf '\t')
+
+say() { echo "ex4-profile: $*"; }
+die() { echo "ex4-profile: REFUSED: $*" >&2; [ -n "$ROOT" ] || logger -t ex4-profile "REFUSED: $*" 2>/dev/null; exit 1; }
+note() { [ -d "$ST" ] && echo "$(date +%s) $*" >> "$ST/log"; [ -n "$ROOT" ] || logger -t ex4-profile "$*" 2>/dev/null; return 0; }
+uci_() { if [ -n "$ROOT" ]; then uci -c "$ROOT/etc/config" "$@"; else uci "$@"; fi; }
+rd() { cat "$ROOT$1" 2>/dev/null; }
+isint() { case "$1" in ''|*[!0-9]*) return 1;; esac; [ ${#1} -le 18 ]; }      # sizes in sectors pass 10 digits
+inrange() { isint "$1" && [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]; }
+
+# ------------------------------------------------------------------ the box: array, members, volume
+md_dev() {           # the data array: the largest md device (md1 on the EX4), as ex4.uc decides it
+	local best bs d s
+	best=; bs=-1
+	for d in "$ROOT"/sys/block/md*; do
+		[ -e "$d/size" ] || continue
+		s=$(cat "$d/size" 2>/dev/null); isint "$s" || continue
+		[ "$s" -gt "$bs" ] && { bs=$s; best=${d##*/}; }
+	done
+	echo "$best"
+}
+MD=$(md_dev)
+members() {          # the member DISKS (sda..), from the array's slaves (sda2 -> sda)
+	local s n
+	[ -n "$MD" ] || return 0
+	for s in "$ROOT/sys/block/$MD/slaves"/*; do
+		[ -e "$s" ] || continue
+		n=${s##*/}; n=${n%%[0-9]*}
+		case "$n" in sd[a-z]) echo "$n";; esac
+	done | sort -u
+}
+nmembers() { local r; r=$(rd "/sys/block/$MD/md/raid_disks"); isint "$r" && echo "$r" || members | wc -l; }
+vol() { local v; v=$(uci_ -q get ex4.main.volume 2>/dev/null); echo "${v:-/mnt/md1}"; }
+mountopts() { awk -v m="$(vol)" '$2 == m && $3 == "ext4" { print $4; exit }' "$ROOT/proc/mounts" 2>/dev/null; }
+astate() { rd "/sys/block/$MD/md/array_state"; }
+
+# ------------------------------------------------------------------ THE ALLOW-LIST
+# knob_ok KNOB VALUE: 0 = known and in range. Ranges are wide enough for every profile and narrow enough that a typo
+# cannot hurt (a 64 MiB read-ahead at most, a 256 MiB dirty ceiling at most, a commit of a minute at most).
+knob_ok() {
+	local k v
+	k=$1; v=$2
+	case "$k" in
+	md.read_ahead_kb) inrange "$v" 0 65536;;
+	md.stripe_cache_size) inrange "$v" 17 32768;;
+	md.group_thread_cnt) inrange "$v" 0 8;;
+	disk.scheduler) case "$v" in none|mq-deadline|bfq|kyber) return 0;; esac; return 1;;
+	disk.nr_requests) inrange "$v" 4 256;;
+	disk.read_ahead_kb) inrange "$v" 0 4096;;
+	disk.standby_min) case "$v" in 0|10|20|30|60) return 0;; esac; return 1;;
+	vm.dirty_bytes) inrange "$v" 8388608 268435456;;
+	vm.dirty_background_bytes) inrange "$v" 4194304 134217728;;
+	vm.dirty_expire_centisecs) inrange "$v" 500 6000;;
+	vm.vfs_cache_pressure) inrange "$v" 10 200;;
+	ext4.atime) case "$v" in noatime|relatime) return 0;; esac; return 1;;
+	ext4.lazytime) case "$v" in on|off) return 0;; esac; return 1;;
+	ext4.commit) inrange "$v" 1 60;;
+	smb.aio_read_size|smb.aio_write_size|smb.min_receivefile_size) inrange "$v" 0 1048576;;
+	smb.use_sendfile|smb.smb2_leases|smb.preserve_case|smb.short_preserve_case|smb.strict_sync|smb.fruit_wipe_rfork|smb.fruit_delete_empty_adfiles)
+		case "$v" in yes|no) return 0;; esac; return 1;;
+	smb.case_sensitive) case "$v" in yes|no|auto) return 0;; esac; return 1;;
+	ksmbd.smb2_leases) case "$v" in yes|no) return 0;; esac; return 1;;
+	ksmbd.smb2_max_read|ksmbd.smb2_max_write) case "$v" in 64K|128K|256K|512K|1M|2M|4M|8M) return 0;; esac; return 1;;
+	*) return 1;;
+	esac
+}
+smb_param() {        # knob -> the exact Samba / ksmbd parameter name
+	case "$1" in
+	smb.fruit_wipe_rfork) echo 'fruit:wipe_intentionally_left_blank_rfork';;
+	smb.fruit_delete_empty_adfiles) echo 'fruit:delete_empty_adfiles';;
+	smb.*) echo "${1#smb.}" | tr '_' ' ';;
+	ksmbd.*) echo "${1#ksmbd.}" | tr '_' ' ';;
+	esac
+}
+kclass() {           # live = this second; mount = needs a read-write mount (remount); server = SMB server reload; drive
+	case "$1" in ext4.*) echo mount;; smb.*|ksmbd.*) echo server;; disk.standby_min) echo drive;; *) echo live;; esac
+}
+label() {
+	case "$1" in
+	md.read_ahead_kb) echo "Read-ahead on the array";; md.stripe_cache_size) echo "RAID 5 stripe cache";;
+	md.group_thread_cnt) echo "RAID 5 worker threads";; disk.scheduler) echo "Disk scheduler";;
+	disk.nr_requests) echo "Disk queue depth";; disk.read_ahead_kb) echo "Read-ahead per disk";;
+	disk.standby_min) echo "Disks sleep when idle";;
+	vm.dirty_bytes) echo "Most data waiting to be written";; vm.dirty_background_bytes) echo "Background writing starts at";;
+	vm.dirty_expire_centisecs) echo "Oldest data waits at most";; vm.vfs_cache_pressure) echo "Keep folder entries cached";;
+	ext4.atime) echo "Access times";; ext4.lazytime) echo "File times kept in memory";; ext4.commit) echo "Journal commit every";;
+	smb.*) printf 'Samba: %s\n' "$(smb_param "$1")";;
+	ksmbd.*) printf 'ksmbd: %s\n' "$(smb_param "$1")";;
+	*) echo "$1";;
+	esac
+}
+human() {            # 1024-based, as the owner reads sizes
+	local k v
+	k=$1; v=$2
+	case "$k" in
+	vm.dirty_bytes|vm.dirty_background_bytes) case "$v" in ratio=*) echo "${v#ratio=}% of free memory";; *) echo "$((v / 1048576)) MiB";; esac;;
+	md.read_ahead_kb|disk.read_ahead_kb) [ "$v" -ge 1024 ] 2>/dev/null && [ $((v % 1024)) = 0 ] && echo "$((v / 1024)) MiB" || echo "$v KiB";;
+	md.stripe_cache_size) echo "$v stripes";;
+	vm.dirty_expire_centisecs) echo "$((v / 100)) s";;
+	ext4.commit) echo "$v s";;
+	disk.standby_min) [ "$v" = 0 ] && echo "never" || echo "after $v min";;
+	ext4.atime) case "$v" in noatime) echo "not written";; relatime) echo "written once a day at most";; *) echo "$v";; esac;;
+	*) echo "$v";;
+	esac
+}
+ramkib() {           # RAM the kernel HOLDS for this knob's value (only the stripe cache reserves memory)
+	local n
+	case "$1" in md.stripe_cache_size) n=$( [ -n "$MD" ] && nmembers); isint "$n" && [ "$n" -ge 1 ] || n=4; echo $(($2 * 4 * n));; *) echo 0;; esac   # no array seen: the EX4's four
+}
+
+FORBID='data=|barrier|journal|tune2fs|fsck|mkfs|mke2fs|mdadm|grow|reshape|level|raid-devices|raid_disks|superblock|resize|chunk|bitmap|sync_action|discard|errors='
+
+# ------------------------------------------------------------------ the confs
+# parse CONF -> normalized records on stdout (TAB separated), or exit 1 with the reason on stderr:
+#   S knob value why | O optname knob value why | T title | B blurb | W optname text | A advice
+parse() {
+	awk -v forbid="$FORBID" -v opts="$OPTS" '
+	function bad(m) { print FILENAME ":" FNR ": " m > "/dev/stderr"; err = 1 }
+	{
+		line = $0; why = ""
+		if (match(line, /^[ \t]*#/) || line ~ /^[ \t]*$/) next
+		d = $1
+		if (d == "set" || d == "opt") {
+			c = index(line, "#"); code = line; if (c > 0) { code = substr(line, 1, c - 1); why = substr(line, c + 1) }
+			sub(/^[ \t]+/, "", why); sub(/[ \t]+$/, "", why)
+			sub(/^[ \t]+/, "", code)
+			if (tolower(code) ~ forbid) { bad("FORBIDDEN word in: " code); next }
+			n = split(code, f, /[ \t]+/); if (f[n] == "") n--
+			if (code ~ /[^-A-Za-z0-9._: \t]/) { bad("a character outside [A-Za-z0-9._:-] in: " code); next }
+			gsub(/\t/, " ", why)
+			if (d == "set") { if (n != 3) { bad("set takes KNOB VALUE"); next } print "S\t" f[2] "\t" f[3] "\t" why }
+			else { if (n != 4) { bad("opt takes NAME KNOB VALUE"); next } if ((" " opts " ") !~ (" " f[2] " ")) { bad("unknown opt " f[2]); next } print "O\t" f[2] "\t" f[3] "\t" f[4] "\t" why }
+		} else if (d == "title" || d == "blurb" || d == "advice") {
+			t = line; sub(/^[ \t]*[a-z]+[ \t]+/, "", t); gsub(/\t/, " ", t)
+			print (d == "title" ? "T" : d == "blurb" ? "B" : "A") "\t" t
+		} else if (d == "warn") {
+			t = line; sub(/^[ \t]*warn[ \t]+[a-z]+[ \t]+/, "", t); gsub(/\t/, " ", t)
+			print "W\t" $2 "\t" t
+		} else bad("unknown directive " d)
+	}
+	END { exit err }' "$1"
+}
+check_conf() {       # parse + the allow-list on every knob; prints the normalized records to $2
+	local t a b c w
+	[ -f "$1" ] || die "no profile file $1"
+	parse "$1" > "$2" || die "$1 is not a clean profile (above): nothing was read or written"
+	while IFS="$TAB" read -r t a b c w; do
+		case "$t" in
+		S) knob_ok "$a" "$b" || die "$1: knob '$a' value '$b' is not on the allow-list (or out of its range): nothing was read or written";;
+		O) knob_ok "$b" "$c" || die "$1: opt $a: knob '$b' value '$c' is not on the allow-list: nothing was read or written";;
+		esac
+	done < "$2"
+}
+valid_profile() { case " $PROFILES " in *" $1 "*) return 0;; esac; return 1; }
+# target PROFILE "OPTS" -> knob<TAB>value<TAB>why for Balanced + PROFILE (+ the ticked opts); a later line wins
+target() {
+	local P O o
+	P=$1; O=$2; mkdir -p "$ST" 2>/dev/null
+	check_conf "$PDIR/balanced.conf" "$ST/.b.norm"
+	[ "$P" = balanced ] && : > "$ST/.p.norm" || check_conf "$PDIR/$P.conf" "$ST/.p.norm"
+	for o in $O; do grep -q "^O$TAB$o$TAB" "$ST/.p.norm" "$ST/.b.norm" || die "profile $P has no opt '$o'"; done
+	awk -F'\t' -v opts=" $O " '
+		$1 == "S" { v[$2] = $3; w[$2] = $4; if (!($2 in seen)) { seen[$2] = 1; ord[++n] = $2 } }
+		$1 == "O" && index(opts, " " $2 " ") { v[$3] = $4; w[$3] = $5; if (!($3 in seen)) { seen[$3] = 1; ord[++n] = $3 } }
+		END { for (i = 1; i <= n; i++) print ord[i] "\t" v[ord[i]] "\t" w[ord[i]] }' "$ST/.b.norm" "$ST/.p.norm"
+}
+
+# ------------------------------------------------------------------ reading a knob's value on THIS box
+# Keys: disk knobs are per member: disk.scheduler@sda. An absent object prints nothing (status 1).
+get_key() {
+	local k dev b o f p
+	k=${1%@*}; dev=${1#*@}
+	case "$k" in
+	md.read_ahead_kb) [ -n "$MD" ] && rd "/sys/block/$MD/queue/read_ahead_kb";;
+	md.stripe_cache_size|md.group_thread_cnt) [ -n "$MD" ] && rd "/sys/block/$MD/md/${k#md.}";;
+	disk.scheduler) rd "/sys/block/$dev/queue/scheduler" | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^\[/) { gsub(/[][]/, "", $i); print $i; exit } print $1 }';;
+	disk.nr_requests|disk.read_ahead_kb) rd "/sys/block/$dev/queue/${k#disk.}";;
+	disk.standby_min) [ -f "$ST/standby@$dev" ] && cat "$ST/standby@$dev" || echo 0;;      # not readable from an ATA drive: what we last set, else never (see PROFILES.md)
+	vm.dirty_bytes|vm.dirty_background_bytes)
+		b=$(rd "/proc/sys/vm/${k#vm.}"); [ -n "$b" ] || return 1
+		if [ "$b" = 0 ]; then echo "ratio=$(rd "/proc/sys/vm/$(echo "${k#vm.}" | sed 's/bytes$/ratio/')")"; else echo "$b"; fi;;
+	vm.*) rd "/proc/sys/vm/${k#vm.}";;
+	ext4.*) o=$(mountopts); [ -n "$o" ] || return 1
+		case "$k" in
+		ext4.atime) echo ",$o," | awk '/,noatime,/ { print "noatime"; exit } /,strictatime,/ { print "strictatime"; exit } { print "relatime" }';;
+		ext4.lazytime) case ",$o," in *,lazytime,*) echo on;; *) echo off;; esac;;
+		ext4.commit) echo ",$o," | sed -n 's/.*,commit=\([0-9]*\),.*/\1/p' | grep . || echo 5;;
+		esac;;
+	smb.*|ksmbd.*) case "$k" in smb.*) f=$SMBT;; *) f=$KSMT;; esac
+		[ -f "$ROOT$f" ] || return 1
+		p=$(smb_param "$k")
+		awk -v b="$BEGIN_MARK" -v e="$END_MARK" -v p="$p" '$0 == b { on = 1; next } $0 == e { on = 0 } on { l = $0; sub(/^[ \t]+/, "", l); i = index(l, " = "); if (i && substr(l, 1, i - 1) == p) { print substr(l, i + 3); f = 1 } } END { if (!f) print "unset" }' "$ROOT$f";;
+	*) return 1;;
+	esac
+}
+expand() {           # knob -> its keys on this box (disk knobs: one per member)
+	local d
+	case "$1" in disk.*) for d in $(members); do echo "$1@$d"; done;; *) echo "$1";; esac
+}
+
+# ------------------------------------------------------------------ can it be set NOW? (sets WHY)
+can_set() {
+	local k dev o
+	k=${1%@*}; dev=${1#*@}; WHY=
+	case "$k" in
+	md.*) [ -n "$MD" ] || { WHY="no array is assembled"; return 2; }
+		[ -e "$ROOT/sys/block/$MD/queue/read_ahead_kb" ] || [ "$k" != md.read_ahead_kb ] || { WHY="the array has no queue yet"; return 2; }
+		[ "$k" = md.read_ahead_kb ] && return 0          # a read-ahead is the block layer's, md writes nothing for it
+		[ -e "$ROOT/sys/block/$MD/md/${k#md.}" ] || { WHY="this array has no ${k#md.} (not RAID 5)"; return 3; }
+		case "$(astate)" in
+		readonly|read-auto|active|active-idle|write-pending) return 0;;
+		clean) if [ "$BENCH" = 1 ]; then return 0; fi
+			WHY="the array is read-write and idle: md would write its clean flag to the disks to change this; set at the next read-only assembly (boot)"; return 2;;
+		*) WHY="the array is not running ($(astate))"; return 2;;
+		esac;;
+	disk.scheduler) [ -e "$ROOT/sys/block/$dev/queue/scheduler" ] || { WHY="no disk $dev"; return 2; }
+		rd "/sys/block/$dev/queue/scheduler" | tr -d '[]' | tr ' ' '\n' | grep -qx "$2" || { WHY="this kernel offers only: $(rd "/sys/block/$dev/queue/scheduler" | tr -d '[]')"; return 3; };;
+	disk.standby_min) command -v smartctl >/dev/null 2>&1 || command -v hdparm >/dev/null 2>&1 || { WHY="no smartctl or hdparm in this image"; return 3; };;
+	disk.*) [ -e "$ROOT/sys/block/$dev/queue/${k#disk.}" ] || { WHY="no disk $dev"; return 2; };;
+	vm.*) [ -e "$ROOT/proc/sys/vm/${k#vm.}" ] || { WHY="no /proc/sys/vm/${k#vm.}"; return 3; };;
+	ext4.*) o=$(mountopts)
+		[ -n "$o" ] || { WHY="the volume $(vol) is not mounted (ext4)"; return 2; }
+		case ",$o," in *,rw,*) ;; *) WHY="the volume is mounted read-only (a trial mounts it ro,noload): waits for a writable mount"; return 2;; esac;;
+	smb.*) [ -f "$ROOT$SMBT" ] || { WHY="Samba is not in this image"; return 3; };;
+	ksmbd.*) [ -f "$ROOT$KSMT" ] || { WHY="ksmbd is not in this image"; return 3; };;
+	esac
+	return 0
+}
+
+# ------------------------------------------------------------------ writing
+kw() {               # write one value to a kernel file; with EX4P_ROOT, emulate the kernel's dirty_* coupling
+	local f l
+	f=$ROOT$1
+	if [ -n "$ROOT" ] && [ "${1##*/}" = scheduler ]; then         # the kernel shows every offered scheduler, the active one in []
+		[ -w "$f" ] || return 1
+		l=$(tr -d '[]' < "$f" | awk -v w="$2" '{ for (i = 1; i <= NF; i++) printf "%s%s", (i > 1 ? " " : ""), ($i == w ? "[" $i "]" : $i); print "" }')
+		printf '%s\n' "$l" > "$f"; return 0
+	fi
+	printf '%s\n' "$2" > "$f" 2>/dev/null || return 1
+	if [ -n "$ROOT" ]; then
+		case "$1" in
+		*/dirty_bytes) [ "$2" != 0 ] && echo 0 > "$ROOT/proc/sys/vm/dirty_ratio";;
+		*/dirty_ratio) [ "$2" != 0 ] && echo 0 > "$ROOT/proc/sys/vm/dirty_bytes";;
+		*/dirty_background_bytes) [ "$2" != 0 ] && echo 0 > "$ROOT/proc/sys/vm/dirty_background_ratio";;
+		*/dirty_background_ratio) [ "$2" != 0 ] && echo 0 > "$ROOT/proc/sys/vm/dirty_background_bytes";;
+		esac
+	fi
+	return 0
+}
+standby_code() { case "$1" in 0) echo off;; 10) echo 120;; 20) echo 240;; 30) echo 241;; 60) echo 242;; esac; }   # ATA timer: 1-240 x5 s, 241+ x30 min
+set_key() {          # one key (non-group); 0 ok, 1 failed
+	local k dev v c
+	k=${1%@*}; dev=${1#*@}; v=$2
+	case "$k" in
+	md.read_ahead_kb) kw "/sys/block/$MD/queue/read_ahead_kb" "$v";;
+	md.stripe_cache_size|md.group_thread_cnt) kw "/sys/block/$MD/md/${k#md.}" "$v";;
+	disk.standby_min)
+		c=$(standby_code "$v"); [ -n "$c" ] || return 1
+		if command -v smartctl >/dev/null 2>&1; then smartctl -q silent -s "standby,$c" "/dev/$dev" >/dev/null 2>&1 || return 1
+		else hdparm -S "$( [ "$c" = off ] && echo 0 || echo "$c")" "/dev/$dev" >/dev/null 2>&1 || return 1; fi
+		echo "$v" > "$ST/standby@$dev";;
+	disk.*) kw "/sys/block/$dev/queue/${k#disk.}" "$v";;
+	vm.dirty_bytes|vm.dirty_background_bytes)
+		case "$v" in ratio=*) kw "/proc/sys/vm/$(echo "${k#vm.}" | sed 's/bytes$/ratio/')" "${v#ratio=}";; *) kw "/proc/sys/vm/${k#vm.}" "$v";; esac;;
+	vm.*) kw "/proc/sys/vm/${k#vm.}" "$v";;
+	*) return 1;;
+	esac
+}
+ext4_remount() {     # $1 atime $2 lazytime(on|off) $3 commit : ONE remount, options from the allow-list only
+	local lz o
+	case "$1" in noatime|relatime|strictatime) ;; *) return 1;; esac
+	case "$2" in on) lz=lazytime;; off) lz=nolazytime;; *) return 1;; esac
+	inrange "$3" 1 60 || return 1
+	o=$(mountopts); case ",$o," in *,rw,*) ;; *) return 1;; esac
+	if [ -n "$ROOT" ]; then [ -n "${EX4P_MOUNT:-}" ] || return 1; "$EX4P_MOUNT" -o "remount,$1,$lz,commit=$3" "$(vol)"; return $?; fi   # tests: never the real mount
+	mount -o "remount,$1,$lz,commit=$3" "$(vol)" 2>/dev/null
+}
+block_of() {         # FILE-KIND(smb|ksmbd) TARGETFILE -> the marked block for every non-"unset" key of that kind
+	local k v
+	awk -F'\t' -v kind="$1" '$1 ~ ("^" kind "\\.") && $2 != "unset" { print $1 "\t" $2 }' "$2" | while IFS="$TAB" read -r k v; do
+		printf '\t%s = %s\n' "$(smb_param "$k")" "$v"
+	done
+}
+strip_block() { awk -v b="$BEGIN_MARK" -v e="$END_MARK" '$0 == b { on = 1; next } on && $0 == e { on = 0; next } !on' "$1"; }
+write_template() {   # TEMPLATE BLOCKFILE : the template without our block, plus the block (if not empty); atomic rename
+	local t
+	t=$ROOT$1; [ -f "$t" ] || return 1
+	{ strip_block "$t"; if [ -s "$2" ]; then echo "$BEGIN_MARK"; cat "$2"; echo "$END_MARK"; fi; } > "$t.ex4p" || return 1
+	cmp -s "$t.ex4p" "$t" && { rm -f "$t.ex4p"; return 0; }
+	mv "$t.ex4p" "$t"
+}
+reload_smb() {       # after a template changed: the init script regenerates /var/etc/smb.conf; SMB clients reconnect
+	[ -n "$ROOT" ] && { note "would reload $1 (test mode)"; return 0; }
+	ls /etc/rc.d/S*"$1" >/dev/null 2>&1 || return 0
+	"/etc/init.d/$1" reload >/dev/null 2>&1 || "/etc/init.d/$1" restart >/dev/null 2>&1
+}
+
+# ------------------------------------------------------------------ state
+# $ST/base.tsv  : key<TAB>value before the first apply since boot (one line per key, first sight wins)
+# $ST/base.smb, $ST/base.ksmbd : the template as it was, WITHOUT our block
+# $ST/applied   : "profile P" / "opts ..." / key<TAB>value lines set by the current profile
+# $ST/pending   : key<TAB>value<TAB>why (waits) · $ST/unavail : key<TAB>value<TAB>why (this box cannot)
+base_get() { awk -F'\t' -v k="$1" '$1 == k { print $2; f = 1; exit } END { exit !f }' "$ST/base.tsv" 2>/dev/null; }
+base_note() {        # record a key's value before we first write it
+	local v
+	base_get "$1" >/dev/null && return 0
+	case "$1" in smb.*|ksmbd.*) v=unset;; *) v=$(get_key "$1") || return 0;; esac
+	printf '%s\t%s\n' "$1" "$v" >> "$ST/base.tsv"
+	case "$1" in
+	smb.*) [ -f "$ST/base.smb" ] || strip_block "$ROOT$SMBT" > "$ST/base.smb";;
+	ksmbd.*) [ -f "$ST/base.ksmbd" ] || strip_block "$ROOT$KSMT" > "$ST/base.ksmbd";;
+	esac
+}
+lock() { mkdir -p "$ST" && chmod 700 "$ST" || die "cannot make $ST"; exec 9>>"$ST/lock"; flock -n 9 || die "another ex4-profile is running"; }
+
+# plan PROFILE OPTS -> $ST/plan: key<TAB>target<TAB>why for every key Balanced+PROFILE sets, and every key a previous
+# apply set that this one does not (back to its value before the first apply)
+plan() {
+	local k v w key b sc r
+	target "$1" "$2" > "$ST/.t" || exit 1
+	: > "$ST/plan"
+	while IFS="$TAB" read -r k v w; do for key in $(expand "$k"); do printf '%s\t%s\t%s\n' "$key" "$v" "$w" >> "$ST/plan"; done; done < "$ST/.t"
+	if [ -f "$ST/applied" ]; then
+		grep -v '^profile \|^opts ' "$ST/applied" | while IFS="$TAB" read -r key v; do
+			grep -q "^$key$TAB" "$ST/plan" && continue
+			b=$(base_get "$key") && printf '%s\t%s\t%s\n' "$key" "$b" "back to its value before any profile" >> "$ST/plan"
+		done
+	fi
+	# THE RAM CAP, before anything is written
+	sc=$(awk -F'\t' '$1 == "md.stripe_cache_size" { print $2 }' "$ST/plan")
+	if [ -n "$sc" ] && [ -n "$MD" ]; then
+		r=$(ramkib md.stripe_cache_size "$sc")
+		[ "$r" -le "$RAMCAP" ] || die "stripe_cache_size $sc x 4 KiB x $(nmembers) members = $r KiB, over the $RAMCAP KiB cap: nothing was written"
+	fi
+}
+
+# ------------------------------------------------------------------ apply / revert
+ROLL=
+rollback() {         # put back every key in $ROLL (key<TAB>pre-value lines in $ST/.done) and the templates
+	local key v
+	[ -s "$ST/.done" ] || return 0
+	say "rolling back what this apply set"
+	while IFS="$TAB" read -r key v; do
+		case "$key" in
+		ext4.*) ;;
+		smb.*|ksmbd.*) ;;
+		*.template) ;;
+		*) set_key "$key" "$v" || say "  could not put back $key = $v";;
+		esac
+	done < "$ST/.done"
+	grep -q '^ext4\.' "$ST/.done" && { ext4_remount "$(dk ext4.atime)" "$(dk ext4.lazytime)" "$(dk ext4.commit)" || say "  could not put back the ext4 options"; }
+	[ -f "$ST/.pre.smb" ] && cp "$ST/.pre.smb" "$ROOT$SMBT"
+	[ -f "$ST/.pre.ksmbd" ] && cp "$ST/.pre.ksmbd" "$ROOT$KSMT"
+	note "apply rolled back"
+}
+dk() { awk -F'\t' -v k="$1" '$1 == k { print $2; exit }' "$ST/.done"; }
+fail() { rollback; die "$*: every knob this apply set was put back; the previous choice stays"; }
+
+do_apply() {         # $1 profile, $2 opts, $3 = record the choice in uci (1) or not (0, revert/boot use their own)
+	local P O E4 SM KS key v w cur rc ta tl tc ca cl cc k kind T svc
+	P=$1; O=$2
+	plan "$P" "$O"
+	: > "$ST/.done"; : > "$ST/.pending"; : > "$ST/.unavail"; rm -f "$ST/.pre.smb" "$ST/.pre.ksmbd"
+	E4=0; SM=0; KS=0
+	# 1. live + drive knobs, key by key
+	while IFS="$TAB" read -r key v w; do
+		case "$key" in ext4.*) E4=1; continue;; smb.*) SM=1; continue;; ksmbd.*) KS=1; continue;; esac
+		cur=$(get_key "$key")
+		can_set "$key" "$v"; rc=$?
+		[ $rc = 3 ] && { printf '%s\t%s\t%s\n' "$key" "$v" "$WHY" >> "$ST/.unavail"; continue; }
+		[ $rc = 2 ] && { printf '%s\t%s\t%s\n' "$key" "$v" "$WHY" >> "$ST/.pending"; continue; }
+		[ "$cur" = "$v" ] && continue
+		base_note "$key"
+		printf '%s\t%s\n' "$key" "$cur" >> "$ST/.done"
+		set_key "$key" "$v" || fail "$key = $v was refused by the kernel"
+		[ "$(get_key "$key")" = "$v" ] || fail "$key reads $(get_key "$key") after writing $v"
+	done < "$ST/plan"
+	# 2. ext4: one remount with the three options together
+	if [ $E4 = 1 ]; then
+		ta=$(pk ext4.atime relatime); tl=$(pk ext4.lazytime off); tc=$(pk ext4.commit 5)
+		if can_set ext4.atime x; then
+			ca=$(get_key ext4.atime); cl=$(get_key ext4.lazytime); cc=$(get_key ext4.commit)
+			if [ "$ca$cl$cc" != "$ta$tl$tc" ]; then
+				for k in ext4.atime ext4.lazytime ext4.commit; do base_note "$k"; printf '%s\t%s\n' "$k" "$(get_key "$k")" >> "$ST/.done"; done
+				ext4_remount "$ta" "$tl" "$tc" || fail "the remount with $ta,$tl,commit=$tc failed"
+				[ "$(get_key ext4.atime)$(get_key ext4.lazytime)$(get_key ext4.commit)" = "$ta$tl$tc" ] || fail "the volume's options did not take ($(mountopts))"
+			fi
+		else
+			for k in ext4.atime ext4.lazytime ext4.commit; do
+				grep -q "^$k$TAB" "$ST/plan" || continue
+				[ "$(get_key "$k")" = "$(pk "$k" x)" ] && continue
+				printf '%s\t%s\t%s\n' "$k" "$(pk "$k" x)" "$WHY" >> "$ST/.pending"
+			done
+		fi
+	fi
+	# 3. Samba / ksmbd: the marked block of each template, one write each
+	grep -qxF "$BEGIN_MARK" "$ROOT$SMBT" 2>/dev/null && SM=1          # a block from an earlier boot is rewritten (or dropped)
+	grep -qxF "$BEGIN_MARK" "$ROOT$KSMT" 2>/dev/null && KS=1
+	for kind in smb ksmbd; do
+		if [ $kind = smb ]; then [ $SM = 1 ] || continue; T=$SMBT; svc=samba4
+		else [ $KS = 1 ] || continue; T=$KSMT; svc=ksmbd; fi
+		if can_set "$kind.x" x; then
+			for key in $(awk -F'\t' -v kind="$kind" '$1 ~ ("^" kind "\\.") { print $1 }' "$ST/plan"); do base_note "$key"; done
+			cp "$ROOT$T" "$ST/.pre.$kind"
+			# the block = every key of this kind in the plan (values back to "unset" drop out) on top of the template
+			awk -F'\t' -v kind="$kind" '$1 ~ ("^" kind "\\.") { print $1 "\t" $2 }' "$ST/plan" > "$ST/.kt"
+			block_of "$kind" "$ST/.kt" > "$ST/.kb"
+			write_template "$T" "$ST/.kb" || fail "could not write $T"
+			cmp -s "$ST/.pre.$kind" "$ROOT$T" || { printf '%s\ttemplate\n' "$kind.template" >> "$ST/.done"; reload_smb "$svc"; }
+		else
+			awk -F'\t' -v kind="$kind" -v w="$WHY" '$1 ~ ("^" kind "\\.") { print $1 "\t" $2 "\t" w }' "$ST/plan" >> "$ST/.unavail"
+		fi
+	done
+	# 4. the record: what this profile set (non-"back to base" keys), what waits, what this box cannot do
+	{ echo "profile $P"; echo "opts $O"; awk -F'\t' '$3 != "back to its value before any profile" { print $1 "\t" $2 }' "$ST/plan"; } > "$ST/applied"
+	mv "$ST/.pending" "$ST/pending"; mv "$ST/.unavail" "$ST/unavail"
+	if [ "$3" = 1 ]; then
+		uci_ -q set ex4.main.profile="$P"; uci_ -q delete ex4.main.profile_opt
+		for o in $O; do uci_ -q add_list ex4.main.profile_opt="$o"; done
+		uci_ -q commit ex4 || say "warning: uci commit failed (the knobs are set; the choice was not saved)"
+	fi
+	note "applied $P${O:+ (opts: $O)}: $(grep -vc template "$ST/.done") knob(s) set, $(wc -l < "$ST/pending") waiting, $(wc -l < "$ST/unavail") not on this box"
+	rm -f "$ST/.done" "$ST/.pre.smb" "$ST/.pre.ksmbd" "$ST/.kt" "$ST/.kb"
+}
+pk() { local v b c; v=$(awk -F'\t' -v k="$1" '$1 == k { print $2; exit }' "$ST/plan"); [ -n "$v" ] && echo "$v" || { b=$(base_get "$1") && echo "$b" || { c=$(get_key "$1") && echo "$c" || echo "$2"; }; }; }
+
+unchoose() { [ "$BENCH" = 1 ] && return 0; uci_ -q delete ex4.main.profile; uci_ -q delete ex4.main.profile_opt; uci_ -q commit ex4; }   # --bench: the owner's choice stays
+do_revert() {        # every recorded key back to its value before the first apply; templates byte-exact
+	local key v cur rc ba bl bc o
+	[ -s "$ST/base.tsv" ] || { say "nothing to revert: no profile has set anything since boot"; unchoose; return 0; }
+	: > "$ST/.left"
+	while IFS="$TAB" read -r key v; do
+		case "$key" in ext4.*|smb.*|ksmbd.*) continue;; esac
+		cur=$(get_key "$key") || { continue; }           # the object is gone (array stopped, disk away): it reset itself
+		[ "$cur" = "$v" ] && continue
+		can_set "$key" "$v"; rc=$?
+		if [ $rc = 2 ]; then printf '%s\t%s\t%s\n' "$key" "$v" "$WHY" >> "$ST/.left"; continue; fi
+		set_key "$key" "$v" && [ "$(get_key "$key")" = "$v" ] || printf '%s\t%s\t%s\n' "$key" "$v" "the kernel refused it" >> "$ST/.left"
+	done < "$ST/base.tsv"
+	if grep -q '^ext4\.' "$ST/base.tsv"; then
+		ba=$(base_get ext4.atime); bl=$(base_get ext4.lazytime); bc=$(base_get ext4.commit)
+		if o=$(mountopts) && [ -n "$o" ]; then
+			if [ "$(get_key ext4.atime)$(get_key ext4.lazytime)$(get_key ext4.commit)" != "$ba$bl$bc" ]; then
+				ext4_remount "$ba" "$bl" "$bc" || printf 'ext4\t%s\t%s\n' "$ba,$bl,commit=$bc" "the remount failed or the volume is read-only now" >> "$ST/.left"
+			fi
+		fi
+	fi
+	[ -f "$ST/base.smb" ] && [ -f "$ROOT$SMBT" ] && { cmp -s "$ST/base.smb" "$ROOT$SMBT" || { cp "$ST/base.smb" "$ROOT$SMBT" && reload_smb samba4; }; }
+	[ -f "$ST/base.ksmbd" ] && [ -f "$ROOT$KSMT" ] && { cmp -s "$ST/base.ksmbd" "$ROOT$KSMT" || { cp "$ST/base.ksmbd" "$ROOT$KSMT" && reload_smb ksmbd; }; }
+	if [ -s "$ST/.left" ]; then
+		mv "$ST/.left" "$ST/pending"; echo "profile revert" > "$ST/applied"
+		say "reverted, except (they wait):"; cut -f1,3 "$ST/pending" | sed 's/^/  /'
+		note "revert: $(wc -l < "$ST/pending") key(s) wait"; return 3
+	fi
+	rm -f "$ST/base.tsv" "$ST/base.smb" "$ST/base.ksmbd" "$ST/applied" "$ST/pending" "$ST/unavail" "$ST/.left" "$ST"/standby@*
+	unchoose
+	note "reverted: every knob has its value from before the first apply"
+	say "reverted: every knob has its value from before the first apply"
+}
+
+# ------------------------------------------------------------------ show / diff / current / json
+show() {
+	local P O k v w o
+	P=$1; O=${2:-}
+	valid_profile "$P" || die "no profile '$P' (one of: $PROFILES)"
+	mkdir -p "$ST"; target "$P" "$O" > "$ST/.t" || exit 1
+	echo "$P: $(awk -F'\t' '$1 == "T" { print $2; exit }' "$ST/.p.norm" "$ST/.b.norm" | head -1)"
+	printf '%-28s %-22s %-7s %9s  %s\n' KNOB VALUE WHEN RAM_KiB WHY
+	while IFS="$TAB" read -r k v w; do printf '%-28s %-22s %-7s %9s  %s\n' "$k" "$(human "$k" "$v")" "$(kclass "$k")" "$(ramkib "$k" "$v")" "$w"; done < "$ST/.t"
+	for o in $OPTS; do grep -q "^O$TAB$o$TAB" "$ST/.p.norm" 2>/dev/null && echo "opt-in '$o': $(awk -F'\t' -v o="$o" '$1 == "O" && $2 == o { printf "%s=%s ", $3, $4 }' "$ST/.p.norm")"; done
+	return 0
+}
+diffp() {
+	local P O n key v w cur rc st
+	P=$1; O=$2
+	valid_profile "$P" || die "no profile '$P' (one of: $PROFILES)"
+	mkdir -p "$ST"; plan "$P" "$O"
+	n=0
+	while IFS="$TAB" read -r key v w; do
+		cur=$(get_key "$key") || cur="(none)"
+		can_set "$key" "$v"; rc=$?
+		[ "$cur" = "$v" ] && [ $rc = 0 ] && continue
+		case $rc in 0) st=now;; 2) st="waits: $WHY";; *) st="not on this box: $WHY";; esac
+		printf '%-30s %s -> %s   [%s; %s]\n' "$key" "$cur" "$v" "$(kclass "${key%@*}")" "$st"; n=$((n + 1))
+	done < "$ST/plan"
+	[ $n = 0 ] && echo "$P: nothing to change on this box"
+	return 0
+}
+current() {
+	local c o
+	c=$(uci_ -q get ex4.main.profile 2>/dev/null); echo "chosen: ${c:-none (the kernel's and Samba's own settings)}$(o=$(uci_ -q get ex4.main.profile_opt 2>/dev/null); [ -n "$o" ] && echo " · opts: $o")"
+	[ -f "$ST/applied" ] && { echo "applied: $(sed -n 's/^profile //p' "$ST/applied")"; grep -v '^profile \|^opts ' "$ST/applied" | sed 's/^/  set  /'; }
+	[ -s "$ST/pending" ] && { echo "waiting:"; sed 's/^/  /' "$ST/pending"; }
+	[ -s "$ST/unavail" ] && { echo "not on this box:"; sed 's/^/  /' "$ST/unavail"; }
+	return 0
+}
+jesc() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+json() {             # /tmp/ex4/profile.json: the cards (what each profile changes vs Balanced, RAM, why) + the state
+	local s c P t a b x w k v why op
+	mkdir -p "$ROOT/tmp/ex4" "$ST" || return 1
+	{
+		printf '{"v":1,"t":%s,"current":"%s","opts":[%s],"applied":"%s",' "$(date +%s)" \
+			"$(uci_ -q get ex4.main.profile 2>/dev/null | jesc)" \
+			"$(for o in $(uci_ -q get ex4.main.profile_opt 2>/dev/null); do printf '"%s",' "$o"; done | sed 's/,$//')" \
+			"$(sed -n 's/^profile //p' "$ST/applied" 2>/dev/null | jesc)"
+		printf '"state":['
+		{ grep -v '^profile \|^opts ' "$ST/applied" 2>/dev/null | awk -F'\t' '{ print $1 "\t" $2 "\tset\t" }'
+		  awk -F'\t' '{ print $1 "\t" $2 "\twaits\t" $3 }' "$ST/pending" 2>/dev/null
+		  awk -F'\t' '{ print $1 "\t" $2 "\tunavailable\t" $3 }' "$ST/unavail" 2>/dev/null; } | jesc |
+			awk -F'\t' 'BEGIN { s = "" } { printf "%s{\"k\":\"%s\",\"v\":\"%s\",\"st\":\"%s\",\"why\":\"%s\"}", s, $1, $2, $3, $4; s = "," }'
+		printf '],"profiles":['
+		s=
+		for P in $PROFILES; do
+			printf '%s' "$s"; s=,
+			if [ "$P" = balanced ]; then check_conf "$PDIR/balanced.conf" "$ST/.j"; else check_conf "$PDIR/$P.conf" "$ST/.j"; fi
+			printf '{"id":"%s","title":"%s","blurb":"%s","changes":[' "$P" "$(awk -F'\t' '$1 == "T" { print $2; exit }' "$ST/.j" | jesc)" "$(awk -F'\t' '$1 == "B" { print $2; exit }' "$ST/.j" | jesc)"
+			c=
+			while IFS="$TAB" read -r t a b x w; do
+				case "$t" in S) k=$a; v=$b; why=$x; op=;; O) k=$b; v=$x; why=$w; op=$a;; *) continue;; esac
+				printf '%s{"k":"%s","label":"%s","value":"%s","raw":"%s","when":"%s","ram_kib":%s,"why":"%s","opt":"%s"}' "$c" "$k" "$(label "$k" | jesc)" "$(human "$k" "$v" | jesc)" "$v" "$(kclass "$k")" "$(ramkib "$k" "$v")" "$(printf '%s' "$why" | jesc)" "$op"; c=,
+			done < "$ST/.j"
+			printf '],"warn":{%s},"advice":[%s],"measured":%s}' \
+				"$(awk -F'\t' '$1 == "W" { print $2 "\t" $3 }' "$ST/.j" | jesc | awk -F'\t' 'BEGIN { s = "" } { printf "%s\"%s\":\"%s\"", s, $1, $2; s = "," }')" \
+				"$(awk -F'\t' '$1 == "A" { print $2 }' "$ST/.j" | jesc | awk 'BEGIN { s = "" } { printf "%s\"%s\"", s, $0; s = "," }')" \
+				"$(measured "$P")"
+		done
+		printf ']}\n'
+	} > "$JSON.new" && mv "$JSON.new" "$JSON"
+	rm -f "$ST/.j"
+}
+measured() {         # PDIR/measured.tsv: profile<TAB>metric<TAB>value<TAB>balanced<TAB>receipt (from the rw bench); none = null
+	local f
+	f=$PDIR/measured.tsv
+	[ -s "$f" ] && grep -q "^$1$TAB" "$f" || { echo null; return 0; }
+	grep "^$1$TAB" "$f" | jesc | awk -F'\t' 'BEGIN { printf "["; s = "" } { printf "%s{\"metric\":\"%s\",\"value\":\"%s\",\"balanced\":\"%s\",\"receipt\":\"%s\"}", s, $2, $3, $4, $5; s = "," } END { printf "]" }'
+}
+
+# ------------------------------------------------------------------ the command line
+CMD=${1:-}; [ $# -gt 0 ] && shift
+P=; O=; BENCH=0
+args() {
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--opt) [ $# -ge 2 ] || die "--opt NAME"; case " $OPTS " in *" $2 "*) ;; *) die "unknown opt '$2' (one of: $OPTS)";; esac; O="$O $2"; shift 2;;
+		--bench) BENCH=1; shift;;
+		-*) die "unknown flag $1";;
+		*) [ -z "$P" ] || die "one profile at a time"; P=$1; shift;;
+		esac
+	done
+	O=$(echo "$O" | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ' | sed 's/ $//')
+}
+case "$CMD" in
+list) for p in $PROFILES; do echo "$p"; done;;
+show) args "$@"; if [ -n "$P" ]; then show "$P" "$O"; else for p in $PROFILES; do show "$p" ""; echo; done; fi;;
+diff) args "$@"; [ -n "$P" ] || die "diff PROFILE"; diffp "$P" "$O";;
+check) [ $# = 1 ] || die "check CONF"; mkdir -p "$ST" 2>/dev/null || ST=$(mktemp -d); check_conf "$1" "$ST/.c" && echo "clean: $1";;
+apply) args "$@"; [ -n "$P" ] || die "apply PROFILE"; valid_profile "$P" || die "no profile '$P' (one of: $PROFILES)"
+	if [ $BENCH = 1 ]; then [ -e "$ROOT/tmp/ex4-rw-active" ] || die "--bench is only for a rw bench session (/tmp/ex4-rw-active)"; fi
+	lock; do_apply "$P" "$O" "$([ $BENCH = 1 ] && echo 0 || echo 1)"; json; current;;     # a bench session never changes the owner's choice
+revert) args "$@"; [ -z "$P" ] || die "revert takes no profile"; lock; do_revert; r=$?; json; exit $r;;
+current) current;;
+boot|reapply) c=$(uci_ -q get ex4.main.profile 2>/dev/null)
+	if [ -z "$c" ]; then json; say "no profile chosen: nothing to apply"; exit 0; fi
+	valid_profile "$c" || die "ex4.main.profile = '$c' is not a profile"
+	o=; for x in $(uci_ -q get ex4.main.profile_opt 2>/dev/null); do case " $OPTS " in *" $x "*) o="$o $x";; esac; done
+	lock; do_apply "$c" "$(echo $o)" 0; json; current;;
+smbconf|ksmbdconf) args "$@"; [ -n "$P" ] || die "$CMD PROFILE"; valid_profile "$P" || die "no profile '$P'"
+	mkdir -p "$ST"; target "$P" "$O" > "$ST/.t" || exit 1
+	block_of "$([ "$CMD" = smbconf ] && echo smb || echo ksmbd)" "$ST/.t";;
+values) args "$@"; [ -n "$P" ] || die "values PROFILE"; valid_profile "$P" || die "no profile '$P'"; mkdir -p "$ST"; target "$P" "$O" | cut -f1,2;;
+json) json && echo "$JSON";;
+*) sed -n '8,24p' "$0" >&2; exit 64;;
+esac
