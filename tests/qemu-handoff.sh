@@ -95,7 +95,15 @@ if [ -s "$W/klog.txt" ]; then
 	else echo "NOTE  no 'Kernel command line' in the ring in this run (with 512 MiB claimed on a 256 MiB machine the kernel stops before it): the MEMFIX=1 run decides this point"; fi
 	if [ "${MEMFIX:-0}" = 1 ]; then
 		grep -q "node   0: \[mem 0x0000000000000000-0x000000000fffffff\]" "$W/klog.txt" && ok "the ATAG memory size reached the kernel through the DTB (256 MiB from the test-only list; the DTB alone says 512)" || no "MEMFIX run: memory is not the ATAG's 256 MiB"
+		if ! grep -q "^Unpacking initramfs" "$W/klog.txt" && [ "$(grep -v '^[[:space:]]*$' "$W/klog.txt" | tail -1 | grep -c '^xor: measuring software checksum speed')" = 1 ]; then
+			# v8 (the v7 image lane's report): a kernel with md built in benchmarks its xor routines before it unpacks the
+			# initramfs, and that benchmark waits for the clock to move; qemu's versatilepb has no Kirkwood timer, so the
+			# clock never moves. The emulator cannot answer this point for such a kernel: SKIP (neither a pass nor a fail).
+			# On the EX4 the orion timer ticks (stock's own dmesg prints this benchmark; run 10 got past it to userspace).
+			echo "SKIP  MEMFIX run: the ring ends at 'xor: measuring software checksum speed': this kernel's built-in md benchmarks xor and waits for a clock qemu's versatilepb does not have, so the overlay's unpack cannot be seen here (on the EX4: run 10 got past it)"
+		else
 		grep -q "^Unpacking initramfs" "$W/klog.txt" && grep -q "^Freeing initrd memory: $(( ($(stat -c %s "$B/overlay.cpio") + 4095) / 4096 * 4 ))K" "$W/klog.txt" && ok "the kernel unpacked the EXTERNAL initrd (the bundle's overlay.cpio, handed over as ATAG_INITRD2) on top of its built-in initramfs: $(grep -m1 '^Freeing initrd memory' "$W/klog.txt")" || no "MEMFIX run: no 'Unpacking initramfs' / 'Freeing initrd memory' for the overlay"
+		fi
 		grep -q "^Feroceon L2: Enabling L2" "$W/klog.txt" && ! grep -q "bootloader left the L2 cache on" "$W/klog.txt" && ok "6.12 found the L2 off and enabled it itself (in qemu the L2 register is a dummy: this checks the kernel's path, not the stub's write)" || no "MEMFIX run: L2 lines"
 		grep -q "ttyS0 at MMIO 0xf1012000" "$W/klog.txt" && ok "the kernel got as far as its serial driver (device initcalls); it stops at the first console character, qemu has no UART and no timer there" || echo "NOTE  the kernel did not reach its serial driver in $SECS s"
 	else
