@@ -1,0 +1,22 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# ex4-claim : for the person who is already inside the box (ssh is key-only, so that is its owner).
+#   ex4-claim          print the eight-digit code the web interface asks for on first use (v9; six until v8)
+#   ex4-claim reset    back to unclaimed: remove the web administrator. No default password exists, so the next
+#                      visitor to the web interface is asked for a fresh code. Shares, users and files are untouched.
+case "${1:-show}" in
+show)
+	[ "$(uci -q get ex4.main.claimed)" = 1 ] && { echo "this box already has a web administrator ($(uci -q get ex4.main.admin)); 'ex4-claim reset' removes it"; exit 1; }
+	[ -s /tmp/ex4/claim ] || { echo "no code yet: open the web interface once (https://$(cat /proc/sys/kernel/hostname).local/), then run this again"; exit 1; }
+	echo "claim code: $(cat /tmp/ex4/claim)"
+	;;
+reset)
+	while uci -q delete rpcd.@login[0]; do :; done
+	uci -q commit rpcd
+	uci -q set ex4.main.claimed=0; uci -q delete ex4.main.admin; uci -q commit ex4
+	unlink /tmp/ex4/claim 2>/dev/null; unlink /var/run/ex4panel/alerts.d/00-claim 2>/dev/null
+	/etc/init.d/rpcd restart
+	echo "unclaimed: the web interface will ask for a new code"
+	;;
+*) echo "usage: ex4-claim [reset]" >&2; exit 64;;
+esac
