@@ -1,0 +1,327 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# ex4-update : look for, check and stage a SIGNED release of this system. It never installs: writing the flash is a
+# later phase (the "flash path"), and nothing in this file writes the flash, a disk, a partition or the array.
+#
+#   ex4-update check  [--url URL | --from DIR] [--insecure-http]   is there a newer release? (RELEASE + .sig only)
+#   ex4-update verify [--url URL | --from DIR] [--insecure-http]   check + fetch the payload + its sha256 and size
+#   ex4-update stage  [--url URL | --from DIR] [--insecure-http]   verify + unpack the payload into RAM, checked again
+#   ex4-update status                            what the last run found (also /tmp/ex4-update/state)
+#   ex4-update keys                              the signing keys this system holds (their usign key numbers)
+#   ex4-update install                           REFUSED: not built (writing the flash is Kurt's call, a later phase)
+#
+# URL is a folder that holds RELEASE, RELEASE.sig and the payload RELEASE names. Default: the first line of
+# /etc/ex4-update/url, else the project's GitHub "latest release" folder (no release is published there yet, so
+# today `check` says "no release found"). DIR is the same folder on a USB stick or in /tmp. (v9) A plain http:// URL
+# is REFUSED unless --insecure-http is typed: the signature still decides what is accepted, but over http anyone on
+# the way sees what this box fetches and can hold back newer releases without being seen doing it.
+#
+# THE ORDER (each step refuses before the next one runs, and a refusal leaves nothing staged):
+#  1. RELEASE (<= 64 KiB) and RELEASE.sig (<= 4 KiB) are fetched into a fresh folder in RAM, with the shell's file
+#     size limit set, so a server cannot fill RAM before anything is checked.
+#  2. usign (OpenWrt's own ed25519 tool, in this image) must accept RELEASE.sig with a key in /etc/ex4-update/keys/.
+#     No key there, or no signature = REFUSED. Nothing in RELEASE is read before this.
+#  3. RELEASE is parsed line by line; any line it does not know = REFUSED. Then: its board must be this board (the
+#     first "compatible" of the device tree, and /etc/ex4-release says the same); its channel this system's channel
+#     (a "trial" system also takes "stable"); its serial GREATER than the serial this system runs (equal = up to date,
+#     smaller = a DOWNGRADE, refused: an old signed release with old holes can never be pushed back in).
+#  3b. (v9) THE EXPIRY. RELEASE says `not-after EPOCH ISO`: the moment its signature stops vouching for "this is the
+#     newest". This system's clock must read later than the release's `built` time (else REFUSED "clock": no expiry
+#     can be judged on a clock that was never set), and earlier than not-after (else REFUSED "expired"). Both come
+#     BEFORE the serial is compared, so a box that someone keeps from seeing newer releases cannot be told "up to
+#     date" by an old signed RELEASE forever: once it expires, check says so, and the web page shows it.
+#  3c. (v9) THE KEY ROTATION. RELEASE may carry ONE `successor KEYNUM BASE64` line: a new public key, vouched for by
+#     the key that signed this RELEASE. Only after every check above has passed (signature, board, channel, expiry,
+#     not a downgrade) is it written to /etc/ex4-update/keys/KEYNUM (usign -F must read that same key number from
+#     it; at most 4 keys are ever held). From then on releases signed by either key are accepted. Revocation is NOT
+#     done here: a key is dropped only by an image that no longer ships it (docs/UPDATES.md). In a RAM trial
+#     /etc is RAM, so an adopted key lasts until the next start.
+#  4. verify/stage: the payload is fetched (file size limit = the size RELEASE gives), and must have exactly that
+#     size and that sha256. A short (truncated) or long or changed download = REFUSED.
+#  5. stage: RAM must hold twice the payload; the tar must list only plain files, each named in RELEASE, each once;
+#     after unpacking every file must have the size and sha256 RELEASE gives. Then (and only then) the folder is
+#     renamed to /tmp/ex4-update/staged/<serial>. RAM is gone at the next boot: in a RAM trial that is the point.
+#
+# Exit: 0 ok (check: up to date or newer found; verify/stage: done) · 1 REFUSED · 2 could not fetch · 64 usage.
+# This file writes only under /tmp/ex4-update (RAM) and, for 3c, one file in /etc/ex4-update/keys/.
+# EX4_UPDATE_ROOT (tests only): a folder every path above is prefixed with, so tests/update/ can run this file under
+# qemu-arm with the image's own busybox, usign and uclient-fetch. Unset on the box.
+set -u
+umask 077
+R=${EX4_UPDATE_ROOT:-}
+KEYS=$R/etc/ex4-update/keys
+IDENT=$R/etc/ex4-release
+URLF=$R/etc/ex4-update/url
+DT=$R/proc/device-tree/compatible
+RUN=$R/tmp/ex4-update
+DEFAULT_URL=https://github.com/aliaholes/wd-mycloud-ex4-openwrt/releases/latest/download
+MAX_REL=65536
+MAX_SIG=4096
+MAX_PAY=67108864
+FETCH_TIMEOUT=60
+MAX_KEYS=4
+MAX_VALID=34560000		# 400 days: no release may vouch for itself longer than this (mkrelease allows 366)
+
+say() { echo "ex4-update: $*"; }
+state() {	# state KEY=VALUE ...: one KEY=VALUE per line, no spaces, written whole (the web page reads it without a process)
+	t=$RUN/state.new
+	{ echo "checked=$(date +%s)"; echo "cmd=$CMD"; for kv in "$@"; do echo "$kv"; done; } > "$t" 2>/dev/null && mv "$t" "$RUN/state"
+}
+refuse() {	# refuse CODE WHY...
+	code=$1; shift
+	say "REFUSED: $*"
+	state "result=refused" "why=$code" "sig=${SIG:-none}" "url=$(urlword)" ${XSTATE:-}
+	cleanup; exit 1
+}
+nofetch() {
+	say "could not fetch: $*"
+	state "result=unreachable" "why=fetch" "sig=none" "url=$(urlword)"
+	cleanup; exit 2
+}
+urlword() { if [ -n "$FROM" ]; then echo local; else printf '%s' "$URL" | sed 's#^\([a-z]*://[^/]*\).*#\1#; s/[^A-Za-z0-9:/._-]//g'; fi; }
+size_of() { wc -c < "$1" | tr -d ' '; }
+sha_of() { sha256sum "$1" | cut -d' ' -f1; }
+cleanup() { [ -n "${WORK:-}" ] && [ -d "$WORK" ] && rm -rf "$WORK"; [ -n "${LOCKD:-}" ] && rmdir "$LOCKD" 2>/dev/null; WORK=; LOCKD=; }
+
+get() {	# get NAME MAXBYTES: into $WORK/NAME, never more than MAXBYTES
+	n=$1; max=$2; out=$WORK/$1
+	blocks=$(( (max + 511) / 512 + 1 ))
+	if [ -n "$FROM" ]; then
+		[ -f "$FROM/$n" ] || { [ "$n" = RELEASE.sig ] && return 3; nofetch "$FROM/$n is not there"; }
+		[ "$(size_of "$FROM/$n")" -le "$max" ] || refuse toobig "$n is larger than $max bytes"
+		cp "$FROM/$n" "$out" || nofetch "cannot copy $FROM/$n"
+		return 0
+	fi
+	( ulimit -f "$blocks"; exec uclient-fetch -T "$FETCH_TIMEOUT" -O "$out" "$URL/$n" ) > /dev/null 2> "$WORK/fetch.err"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		[ -f "$out" ] && [ "$(size_of "$out")" -gt "$max" ] && refuse toobig "$n is larger than $max bytes"
+		[ $rc -ge 128 ] && refuse toobig "$n was cut off at the size limit ($max bytes)"
+		grep -q '^HTTP error 404' "$WORK/fetch.err" 2>/dev/null && { [ "$n" = RELEASE.sig ] && return 3; nofetch "$URL/$n: not found (404)"; }
+		nofetch "$URL/$n ($(grep -v -e '^Downloading' -e '^Connecting' "$WORK/fetch.err" | head -c 200 | tr '\n' ' '))"
+	fi
+	[ "$(size_of "$out")" -le "$max" ] || refuse toobig "$n is larger than $max bytes"
+}
+
+listed() { awk -v n="$1" '$3 == n { f = 1 } END { exit !f }' "$WORK/files"; }	# exact name, no pattern
+board_now() {	# the first "compatible" string of the running device tree
+	[ -r "$DT" ] || return 1
+	tr '\000' '\n' < "$DT" | head -n 1
+}
+ident() {	# ident KEY: a value of /etc/ex4-release (board= version= serial= channel=)
+	sed -n "s/^$1=\\([A-Za-z0-9.,+_-]*\\)\$/\\1/p" "$IDENT" | head -n 1
+}
+
+parse_release() {	# RELEASE -> shell variables; any unknown line, duplicate or missing line = refused
+	f=$WORK/RELEASE
+	[ "$(head -n 1 "$f")" = "ex4-release 1" ] || refuse format "RELEASE is not format 'ex4-release 1'"
+	[ "$(tail -c 1 "$f" | wc -l | tr -d ' ')" = 1 ] || refuse format "RELEASE does not end with a newline"
+	grep -q '[^A-Za-z0-9 .,:+~_/-]' "$f" && refuse format "RELEASE holds a character it may not"
+	: > "$WORK/files"
+	R_BOARD=; R_VERSION=; R_SERIAL=; R_CHANNEL=; R_BUILT=; R_OPENWRT=; R_KERNEL=; R_PAY_SHA=; R_PAY_SIZE=; R_PAY=; END=0; LN=0
+	R_NA=; R_NA_ISO=; R_SUCC=; R_SUCC_B64=
+	while IFS=' ' read -r k a b c d; do
+		LN=$((LN + 1))
+		[ $LN = 1 ] && continue
+		[ $END = 1 ] && refuse format "a line after 'end'"
+		case "$k" in
+		board)   [ -z "$R_BOARD" ] && [ -n "$a" ] && [ -z "$b" ] || refuse format "bad board line"; R_BOARD=$a;;
+		version) [ -z "$R_VERSION" ] && [ -n "$a" ] && [ -z "$b" ] || refuse format "bad version line"
+		         case "$a" in *[!A-Za-z0-9.+-]*) refuse format "bad version";; esac; [ ${#a} -le 40 ] || refuse format "version too long"; R_VERSION=$a;;
+		serial)  [ -z "$R_SERIAL" ] && [ -z "$b" ] || refuse format "bad serial line"
+		         case "$a" in [1-9]|[1-9][0-9]|[1-9][0-9][0-9]*) ;; *) refuse format "bad serial";; esac
+		         case "$a" in *[!0-9]*) refuse format "bad serial";; esac
+		         [ ${#a} -le 10 ] || refuse format "serial too long"; R_SERIAL=$a;;
+		channel) [ -z "$R_CHANNEL" ] && [ -z "$b" ] || refuse format "bad channel line"
+		         case "$a" in stable|trial|test) R_CHANNEL=$a;; *) refuse format "unknown channel";; esac;;
+		built)   [ -z "$R_BUILT" ] && [ -z "$b" ] || refuse format "bad built line"
+		         case "$a" in [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z) ;; *) refuse format "bad built time";; esac; R_BUILT=$a;;
+		not-after) [ -z "$R_NA" ] && [ -n "$b" ] && [ -z "$c" ] || refuse format "bad not-after line"
+		         case "$a" in ''|*[!0-9]*) refuse format "bad not-after";; esac; [ ${#a} -le 11 ] || refuse format "bad not-after"
+		         case "$b" in [0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z) ;; *) refuse format "bad not-after time";; esac
+		         R_NA=$a; R_NA_ISO=$b;;
+		successor) [ -z "$R_SUCC" ] && [ -n "$b" ] && [ -z "$c" ] || refuse format "bad successor line (one at most)"
+		         case "$a" in *[!0-9a-f]*) refuse format "bad successor key number";; esac; [ ${#a} = 16 ] || refuse format "bad successor key number"
+		         case "$b" in *[!A-Za-z0-9+/]*) refuse format "bad successor key";; esac; [ ${#b} = 56 ] || refuse format "bad successor key"
+		         R_SUCC=$a; R_SUCC_B64=$b;;
+		openwrt) [ -z "$R_OPENWRT" ] && [ -n "$b" ] && [ -z "$c" ] || refuse format "bad openwrt line"; R_OPENWRT="$a $b";;
+		kernel)  [ -z "$R_KERNEL" ] && [ "$b" = vermagic ] && [ -n "$c" ] && [ -z "$d" ] || refuse format "bad kernel line"; R_KERNEL=$a;;
+		payload|sbom|file)
+		         [ -n "$c" ] && [ -z "$d" ] || refuse format "bad $k line"
+		         case "$a" in *[!0-9a-f]*) refuse format "bad sha256";; esac; [ ${#a} = 64 ] || refuse format "bad sha256"
+		         case "$b" in ''|*[!0-9]*) refuse format "bad size";; esac
+		         case "$c" in [A-Za-z0-9]*) ;; *) refuse format "bad name";; esac
+		         case "$c" in *[!A-Za-z0-9._-]*|*..*) refuse format "bad name";; esac
+		         if [ "$k" = payload ]; then [ -z "$R_PAY" ] || refuse format "payload twice"; R_PAY_SHA=$a; R_PAY_SIZE=$b; R_PAY=$c
+		         elif [ "$k" = file ]; then listed "$c" && refuse format "file $c twice"; echo "$a $b $c" >> "$WORK/files"; fi;;
+		end)     [ -z "$a" ] || refuse format "bad end line"; END=1;;
+		*)       refuse format "unknown line '$(printf '%s' "$k" | head -c 20)'";;
+		esac
+	done < "$f"
+	[ $END = 1 ] || refuse format "no 'end' line: RELEASE is cut short"
+	for v in "$R_BOARD" "$R_VERSION" "$R_SERIAL" "$R_CHANNEL" "$R_BUILT" "$R_OPENWRT" "$R_KERNEL" "$R_PAY" "$R_NA"; do
+		[ -n "$v" ] || refuse format "a required line is missing"
+	done
+	[ -s "$WORK/files" ] || refuse format "no file lines"
+}
+
+epoch_of() {	# epoch_of 2026-11-17T23:40:00Z -> seconds (busybox date -d takes "YYYY-MM-DD hh:mm:ss")
+	date -u -d "$(echo "$1" | sed 's/T/ /; s/Z$//')" +%s 2>/dev/null
+}
+check_expiry() {	# 3b: the clock, then not-after; both before the serial is looked at
+	XSTATE="expires=$R_NA_ISO"
+	BT=$(epoch_of "$R_BUILT"); case "$BT" in ''|*[!0-9]*) refuse format "the built time $R_BUILT cannot be read";; esac
+	[ "$R_NA" -gt "$BT" ] || refuse format "not-after ($R_NA_ISO) is not after built ($R_BUILT)"
+	[ $((R_NA - BT)) -le $MAX_VALID ] || refuse format "this release vouches for itself for more than 400 days ($R_BUILT to $R_NA_ISO)"
+	[ "$(epoch_of "$R_NA_ISO")" = "$R_NA" ] || refuse format "not-after: $R_NA and $R_NA_ISO are not the same moment"
+	NOW=$(date +%s)
+	[ "$NOW" -ge "$BT" ] || refuse clock "this system's clock reads $(date -u '+%Y-%m-%dT%H:%M:%SZ'), before this release was built ($R_BUILT): set the clock first (an expiry cannot be judged on a clock that was never set)"
+	[ "$NOW" -lt "$R_NA" ] || refuse expired "release $R_VERSION (serial $R_SERIAL) EXPIRED on $R_NA_ISO. Its signature is good, but it no longer vouches that it is the newest: the release address may be stale, or something is holding newer releases back from this box. Ask for a fresh release (any newer one is accepted)"
+}
+adopt_successor() {	# 3c: only called after every check of the release has passed
+	[ -n "$R_SUCC" ] || return 0
+	XSTATE="$XSTATE successor=$R_SUCC"
+	if [ -f "$KEYS/$R_SUCC" ]; then say "successor key $R_SUCC: already held"; return 0; fi
+	t=$WORK/successor.pub
+	printf 'untrusted comment: EX4 successor key %s, vouched for by key %s in release serial %s\n%s\n' "$R_SUCC" "$KEYID" "$R_SERIAL" "$R_SUCC_B64" > "$t"
+	[ "$(usign -F -p "$t" 2>/dev/null | tr -cd '0-9a-f')" = "$R_SUCC" ] || refuse successor "the successor key in RELEASE does not carry its own key number $R_SUCC"
+	[ "$R_SUCC" != "$KEYID" ] || refuse successor "the successor key is the key that signed this release"
+	[ "$(ls "$KEYS" | wc -l)" -lt $MAX_KEYS ] || refuse successor "this system already holds $MAX_KEYS keys; a new image must drop one first"
+	n=${KEYS:?}/${R_SUCC:?}
+	cp "$t" "$n.new" && chmod 644 "$n.new" && mv "$n.new" "$n" || { rm -f "$n.new"; refuse local "cannot write $n"; }
+	say "KEY ROTATION: now also trusting key $R_SUCC (vouched for by key $KEYID in release $R_VERSION, serial $R_SERIAL)"
+	logger -t ex4-update "key rotation: adopted key $R_SUCC, vouched for by $KEYID in serial $R_SERIAL" 2>/dev/null
+	return 0
+}
+
+# ---------------------------------------------------------------- arguments
+CMD=${1:-}; [ $# -gt 0 ] && shift
+URL=; FROM=; WORK=; LOCKD=; SIG=; INSECURE=0; XSTATE=
+USAGE="usage: ex4-update check|verify|stage [--url URL | --from DIR] [--insecure-http] | status | keys | install"
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--url)  URL=${2:-}; shift 2 || exit 64;;
+	--from) FROM=${2:-}; shift 2 || exit 64;;
+	--insecure-http) INSECURE=1; shift;;
+	*) echo "$USAGE" >&2; exit 64;;
+	esac
+done
+case "$CMD" in
+status)  [ -f "$RUN/state" ] && cat "$RUN/state" || echo "result=never"; exit 0;;
+keys)    n=0; for k in "$KEYS"/*; do [ -f "$k" ] || continue; n=$((n + 1)); echo "key ${k##*/}: $(sed -n 1p "$k" | cut -c1-120)"; done
+         echo "$n signing key(s) held in $KEYS"; exit 0;;
+install) say "REFUSED: installing is not built. A staged release stays in RAM; writing the flash is a later phase that Kurt decides."; exit 1;;
+check|verify|stage) ;;
+*) echo "$USAGE" >&2; exit 64;;
+esac
+[ -n "$URL" ] && [ -n "$FROM" ] && { echo "ex4-update: --url or --from, not both" >&2; exit 64; }
+if [ -z "$FROM" ] && [ -z "$URL" ]; then
+	URL=$( [ -f "$URLF" ] && head -n 1 "$URLF" | tr -d '\r' )
+	[ -n "$URL" ] || URL=$DEFAULT_URL
+fi
+if [ -n "$URL" ]; then
+	case "$URL" in https://*) ;;
+	http://*) [ "$INSECURE" = 1 ] || { echo "ex4-update: REFUSED: $URL is plain http. Use https://, or type --insecure-http if you mean it (the signature still decides what is accepted, but anyone on the way sees what you fetch and can hold newer releases back)" >&2; exit 64; }
+	          say "note: plain http, as typed (--insecure-http); the signature still decides";;
+	*) echo "ex4-update: the URL must start with https:// (http:// only with --insecure-http)" >&2; exit 64;; esac
+	case "$URL" in *[!A-Za-z0-9:/._~%+-]*) echo "ex4-update: the URL holds a character it may not" >&2; exit 64;; esac
+	URL=${URL%/}
+fi
+[ -z "$FROM" ] || [ -d "$FROM" ] || { echo "ex4-update: $FROM is not a folder" >&2; exit 64; }
+
+mkdir -p "$RUN" || exit 1
+LOCKD=$RUN/lock
+mkdir "$LOCKD" 2>/dev/null || { LOCKD=; say "another ex4-update is running (or $RUN/lock is stale: remove it)"; exit 1; }
+trap 'cleanup' EXIT INT TERM
+WORK=$RUN/work.$$
+rm -rf "$WORK"; mkdir "$WORK" || refuse local "cannot make $WORK"
+
+# ---------------------------------------------------------------- 0: who we are
+[ -f "$IDENT" ] || refuse ident "$IDENT is missing: without the running serial no downgrade can be judged"
+I_BOARD=$(ident board); I_SERIAL=$(ident serial); I_CHANNEL=$(ident channel); I_VERSION=$(ident version)
+case "$I_SERIAL" in ''|*[!0-9]*) refuse ident "$IDENT has no serial";; esac
+B=$(board_now) || refuse ident "cannot read the board from $DT"
+[ -n "$I_BOARD" ] && [ "$B" = "$I_BOARD" ] || refuse ident "the device tree says '$B', $IDENT says '$I_BOARD'"
+ls "$KEYS"/* > /dev/null 2>&1 || refuse nokey "no signing key in $KEYS"
+
+# ---------------------------------------------------------------- 1 + 2: RELEASE and its signature
+get RELEASE "$MAX_REL"
+get RELEASE.sig "$MAX_SIG" || refuse unsigned "no RELEASE.sig: an unsigned release is never read"
+SIG=bad
+usign -V -q -P "$KEYS" -m "$WORK/RELEASE" -x "$WORK/RELEASE.sig" 2> "$WORK/usign.err" \
+	|| refuse badsig "the signature is not good, or is by a key this system does not hold ($(usign -F -x "$WORK/RELEASE.sig" 2>/dev/null || echo unknown key))"
+SIG=good
+KEYID=$(usign -F -x "$WORK/RELEASE.sig" 2>/dev/null | tr -cd '0-9a-f')
+
+# ---------------------------------------------------------------- 3: what it is, and whether it is for us
+parse_release
+[ "$R_BOARD" = "$B" ] || refuse board "this release is for '$R_BOARD', this system is '$B'"
+case "$I_CHANNEL:$R_CHANNEL" in
+stable:stable|trial:trial|trial:stable|test:test) ;;
+*) refuse channel "this release is channel '$R_CHANNEL', this system is channel '$I_CHANNEL'";;
+esac
+check_expiry
+if [ "$R_SERIAL" -lt "$I_SERIAL" ]; then
+	refuse downgrade "release $R_VERSION (serial $R_SERIAL) is OLDER than this system ($I_VERSION, serial $I_SERIAL)"
+fi
+adopt_successor
+if [ "$R_SERIAL" -eq "$I_SERIAL" ]; then
+	say "up to date: $I_VERSION (serial $I_SERIAL), signature good (key $KEYID), release good until $R_NA_ISO"
+	state "result=current" "sig=good" "key=$KEYID" "latest=$R_VERSION" "latest_serial=$R_SERIAL" "running=$I_VERSION" "url=$(urlword)" $XSTATE
+	[ "$CMD" = check ] && exit 0
+	refuse current "nothing newer to $CMD"
+fi
+say "newer release: $R_VERSION (serial $R_SERIAL, OpenWrt $R_OPENWRT, kernel $R_KERNEL), signature good (key $KEYID), good until $R_NA_ISO; running $I_VERSION (serial $I_SERIAL)"
+if [ "$CMD" = check ]; then
+	state "result=newer" "sig=good" "key=$KEYID" "latest=$R_VERSION" "latest_serial=$R_SERIAL" "running=$I_VERSION" "url=$(urlword)" $XSTATE
+	exit 0
+fi
+
+# ---------------------------------------------------------------- 4: the payload
+[ "$R_PAY_SIZE" -le "$MAX_PAY" ] || refuse toobig "the payload ($R_PAY_SIZE bytes) is over $MAX_PAY"
+if [ "$CMD" = stage ]; then
+	avail=$(awk '/^MemAvailable:/ {print $2}' "$R/proc/meminfo" 2>/dev/null)
+	case "$avail" in ''|*[!0-9]*) refuse ram "cannot read MemAvailable";; esac
+	[ $((avail * 1024)) -gt $((R_PAY_SIZE * 2 + 16777216)) ] || refuse ram "RAM: $((avail / 1024)) MiB free, staging needs $(( (R_PAY_SIZE * 2 + 16777216) / 1048576 )) MiB"
+fi
+get "$R_PAY" "$R_PAY_SIZE"
+got=$(size_of "$WORK/$R_PAY")
+[ "$got" = "$R_PAY_SIZE" ] || refuse size "the payload is $got bytes, RELEASE says $R_PAY_SIZE (cut short or padded)"
+[ "$(sha_of "$WORK/$R_PAY")" = "$R_PAY_SHA" ] || refuse hash "the payload's sha256 is not the one RELEASE signs for"
+if [ "$CMD" = verify ]; then
+	say "verified: $R_PAY ($got bytes) is the payload of $R_VERSION; nothing was kept"
+	state "result=verified" "sig=good" "key=$KEYID" "latest=$R_VERSION" "latest_serial=$R_SERIAL" "running=$I_VERSION" "url=$(urlword)" $XSTATE
+	exit 0
+fi
+
+# ---------------------------------------------------------------- 5: stage into RAM
+tar -t -v -f "$WORK/$R_PAY" > "$WORK/list" 2> /dev/null || refuse tar "the payload is not a tar this system can read"
+n=0
+while read -r mode rest; do
+	case "$mode" in -*) ;; *) refuse tar "the payload holds something that is not a plain file";; esac
+	n=$((n + 1))
+done < "$WORK/list"
+tar -t -f "$WORK/$R_PAY" > "$WORK/names" 2> /dev/null || refuse tar "cannot list the payload"
+[ "$(sort "$WORK/names" | uniq -d | wc -l)" = 0 ] || refuse tar "a name appears twice in the payload"
+[ "$(wc -l < "$WORK/names")" = "$n" ] && [ "$n" = "$(wc -l < "$WORK/files")" ] || refuse tar "the payload's files are not the ones RELEASE lists"
+while read -r name; do
+	case "$name" in [A-Za-z0-9]*) ;; *) refuse tar "a bad name in the payload";; esac
+	case "$name" in *[!A-Za-z0-9._-]*|*..*) refuse tar "a bad name in the payload";; esac
+	listed "$name" || refuse tar "the payload holds $name, which RELEASE does not list"
+done < "$WORK/names"
+mkdir "$WORK/x" && tar -x -o -f "$WORK/$R_PAY" -C "$WORK/x" 2> /dev/null || refuse tar "unpacking failed"
+rm -f "$WORK/$R_PAY"
+while read -r h s name; do
+	[ -f "$WORK/x/$name" ] && [ ! -L "$WORK/x/$name" ] || refuse tar "$name did not come out of the payload"
+	[ "$(size_of "$WORK/x/$name")" = "$s" ] || refuse hash "$name has the wrong size"
+	[ "$(sha_of "$WORK/x/$name")" = "$h" ] || refuse hash "$name has the wrong sha256"
+done < "$WORK/files"
+[ "$(find "$WORK/x" | wc -l)" = $((n + 1)) ] || refuse tar "unpacking made something RELEASE does not list"
+cp "$WORK/RELEASE" "$WORK/x/.RELEASE" && cp "$WORK/RELEASE.sig" "$WORK/x/.RELEASE.sig" || refuse local "cannot keep RELEASE beside the staged files"
+mkdir -p "$RUN/staged"
+DEST=$RUN/staged/$R_SERIAL
+rm -rf "$DEST"
+mv "$WORK/x" "$DEST" || refuse local "cannot move the staged files into $DEST"
+say "staged in RAM: $DEST ($n files, every one checked against RELEASE). Not installed: installing is a later phase."
+state "result=staged" "sig=good" "key=$KEYID" "latest=$R_VERSION" "latest_serial=$R_SERIAL" "running=$I_VERSION" "staged=$R_SERIAL" "url=$(urlword)" $XSTATE
+exit 0
