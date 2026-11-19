@@ -145,7 +145,11 @@ for k, c in want.items():
 ok("FanControl 0" in stock and stock["FanControl 0"] not in mine.values(), "WD's fan-STOP frame (%s) is not in the daemon's table" % stock.get("FanControl 0"))
 ok({v: k for k, v in mine.items()} == {h: n for h, n in WHITELIST.items()}, "this test's whitelist == the daemon's table")
 src = open(A.src).read(); code = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
-ok(len(re.findall(r"\bwrite\s*\(\s*tty\b", code)) == 1 and "write(tty, TX[idx], sizeof TX[idx])" in code, "source: exactly one write to the port, and it writes TX[idx]")
+# v7: the one write to the port moved into port_write(); its only callers are mcu_write (TX[idx]) and panel_write (a frame that passed
+# frame_check(): the panel whitelist, proven in tests/panel-test.py)
+ok(len(re.findall(r"\bwrite\s*\(\s*tty\b", code)) == 1 and "return write(tty, b, n) == (ssize_t)n ? 0 : -1;" in code and "return port_write(TX[idx], sizeof TX[idx]);" in code
+   and len(re.findall(r"\bport_write\s*\(", code)) == 3 and "static int port_write(const unsigned char *b, size_t n)" in code and "return port_write(b, (size_t)n);" in code,
+   "source: exactly one write to the port (port_write), called only with TX[idx] and from panel_write (after frame_check)")
 ok(not re.findall(r"\b(pwrite|writev|sendto|send|dprintf|fprintf|fputs|fputc|fwrite)\s*\(\s*tty\b", code) and not re.findall(r"tcsendbreak|TIOCSTI|TIOCMSET|TIOCMBIS", code), "source: no other call can put a byte or a line state on the port")
 wopens = sorted(re.findall(r'open\(([^,()]+), O_(?:WRONLY|RDWR)', code))
 ok(wopens == sorted(['path', 'path', '"/dev/kmsg"', 'node', '"/sys/class/gpio/export"', 'tmp', '"/proc/sysrq-trigger"', '"/dev/null"']) and len(re.findall(r"O_WRONLY|O_RDWR", code)) == 8,
