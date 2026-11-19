@@ -1,0 +1,26 @@
+{
+ "_what": "update/cvewatch.py: how each OpenWrt SOURCE package of a release's SBOM is asked about at OSV.dev. OSV has no OpenWrt ecosystem (it answers 400 'invalid ecosystem', checked Nov 17 2026), so userspace is asked as the same upstream version in ALPINE's data (Alpine ships upstream versions much as OpenWrt does: a PROXY, never proof), and the kernel as the upstream stable tag in OSV's GIT data (the Linux kernel CNA's records). OpenWrt's own projects have no OSV coverage at all: they are listed as BLIND, every run. A source package not in this file is UNCHECKED, every run: add it here.",
+ "alpine": "Alpine:v3.24",
+ "kernel_git": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+ "canaries": [
+  {"why": "Alpine data answers: busybox 1.36.0 has known holes", "ecosystem": "Alpine:v3.24", "name": "busybox", "version": "1.36.0-r0"},
+  {"why": "kernel GIT data answers: v6.12.1 has known holes", "ecosystem": "GIT", "name": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git", "version": "v6.12.1"}
+ ],
+ "alpine_names": {
+  "acl": "acl", "apk": "apk-tools", "attr": "attr", "avahi": "avahi", "busybox": "busybox",
+  "ca-certificates": "ca-certificates", "dropbear": "dropbear", "e2fsprogs": "e2fsprogs", "expat": "expat",
+  "gmp": "gmp", "gnutls": "gnutls", "ksmbd-tools": "ksmbd-tools", "libcap": "libcap", "libdaemon": "libdaemon",
+  "libjson-c": "json-c", "libnl": "libnl3", "libtasn1": "libtasn1", "libtirpc": "libtirpc", "libxml2": "libxml2",
+  "lua": "lua5.1", "mbedtls": "mbedtls", "mdadm": "mdadm", "msmtp": "msmtp", "mtd-utils": "mtd-utils",
+  "ncurses": "ncurses", "nettle": "nettle", "nfs-kernel-server": "nfs-utils", "openssl": "openssl", "popt": "popt",
+  "readline": "readline", "rpcbind": "rpcbind", "rsync": "rsync", "samba4": "samba", "smartmontools": "smartmontools",
+  "sqlite3": "sqlite", "toolchain": "musl", "util-linux": "util-linux", "wsdd2": "wsdd2", "zlib": "zlib"
+ },
+ "version_from": {"toolchain": "libc"},
+ "blind": {
+  "_why": "OpenWrt's own projects (or OpenWrt-only packaging): no OSV ecosystem covers them. Watch https://openwrt.org/advisory and the 25.12 branch's commits.",
+  "names": ["base-files", "bonding", "fstools", "fwtool", "jsonfilter", "libnl-tiny", "libubox", "lua-lsqlite3", "mtd",
+            "netifd", "odhcp6c", "openwrt-keyring", "procd", "px5g-mbedtls", "rpcd", "tcp_wrappers", "ubox", "ubus", "uci", "uclient",
+            "ucode", "udebug", "uhttpd", "urandom-seed", "urngd", "usign", "ustream-ssl"]
+ }
+}
