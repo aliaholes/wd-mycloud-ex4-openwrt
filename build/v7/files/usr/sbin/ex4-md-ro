@@ -1,0 +1,93 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# ex4-md-ro (EX4 v7 image): assemble the data array READ-ONLY and mount it read-only, with the walls the kernel
+# itself enforces. It is the ONLY assemble path in the v7 image: mdadm's init script is not started at boot, the
+# kernel has no md autodetect, and there is NO read-write command in this image at all.
+#
+#   ex4-md-ro check        examine only: prints what it would assemble, changes nothing (members are set
+#                          read-only first, which is a kernel flag, not a disk write)
+#   ex4-md-ro assemble     check, then assemble /dev/md1 --readonly and mount it ro,noload at /mnt/md1
+#   ex4-md-ro stop         umount /mnt/md1, mdadm --stop /dev/md1 (the members stay read-only until reboot)
+#
+# The walls, in order (each one alone stops a write):
+#   1. every member partition is set read-only in the kernel (blockdev --setro) BEFORE mdadm opens it; any
+#      read-only member forces the array into MD_RDONLY (drivers/md/md.c), where md fails every write bio and
+#      never writes a superblock; no resync can start.
+#   2. mdadm --assemble --readonly (never --run, never --force).
+#   3. /dev/md1 itself is set read-only (blockdev --setro).
+#   4. ext4 is mounted ro,noload: no journal replay even if the journal is dirty.
+# It REFUSES unless exactly four SATA partitions carry the same array: super 1.0, raid5, 64K chunk,
+# left-symmetric, State clean, the same Events count on all four. Anything else: nothing is assembled.
+# Read-write is a later phase and needs its own command and Kurt's typed word per session; it is not here.
+set -u
+MNT=/mnt/md1; OUT=/tmp/ex4-md1-examine.txt; MD=/dev/md1
+say() { echo "ex4-md-ro: $*"; logger -t ex4-md-ro "$*" 2>/dev/null; }
+die() { echo "ex4-md-ro: REFUSED: $*" >&2; logger -t ex4-md-ro "REFUSED: $*" 2>/dev/null; exit 1; }
+command -v mdadm >/dev/null || die "no mdadm"
+command -v blockdev >/dev/null || die "no blockdev (busybox applet)"
+
+members() {       # partition 2 of every disk that sits behind a SATA (ata) host, never USB
+	for b in /sys/block/sd?; do
+		d=${b##*/}
+		readlink -f "$b/device" | grep -q '/ata[0-9]' || continue
+		[ -b "/dev/${d}2" ] && echo "/dev/${d}2"
+	done
+}
+
+setro_all() {
+	for p in "$@"; do
+		blockdev --setro "$p" || die "blockdev --setro $p failed"
+		[ "$(blockdev --getro "$p")" = 1 ] || die "$p is not read-only after --setro"
+	done
+}
+
+field() {         # $1 = examine text file, $2 = field name -> its value (first match, trimmed)
+	awk -F' : ' -v k="$2" '{ g = $1; sub(/^ +/, "", g) } g == k { v = $2; sub(/ +$/, "", v); print v; exit }' "$1"
+}
+
+check() {
+	grep -q '^md1 ' /proc/mdstat 2>/dev/null && die "md1 already exists ($(grep '^md1 ' /proc/mdstat))"
+	set -- $(members)
+	[ $# = 4 ] || die "found $# SATA partition-2 devices ($*), want 4"
+	setro_all "$@"
+	: > "$OUT"; UUID0=; EV0=
+	for p in "$@"; do
+		T=/tmp/ex4-md1-examine.$$; mdadm --examine "$p" > "$T" 2>&1 || { cat "$T" >> "$OUT"; rm -f "$T"; die "mdadm --examine $p failed (see $OUT)"; }
+		{ echo "=== $p"; cat "$T"; } >> "$OUT"
+		V=$(field "$T" Version); U=$(field "$T" 'Array UUID'); L=$(field "$T" 'Raid Level'); C=$(field "$T" 'Chunk Size')
+		Y=$(field "$T" Layout); S=$(field "$T" State); E=$(field "$T" Events); N=$(field "$T" 'Raid Devices'); rm -f "$T"
+		[ "$V" = 1.0 ] || die "$p: superblock version '$V', want 1.0"
+		[ "$L" = raid5 ] || die "$p: level '$L', want raid5"
+		[ "$C" = 64K ] || die "$p: chunk '$C', want 64K"
+		[ "$Y" = left-symmetric ] || die "$p: layout '$Y', want left-symmetric"
+		[ "$N" = 4 ] || die "$p: raid devices '$N', want 4"
+		case "$S" in clean|'clean ') ;; *) die "$p: state '$S', want clean (a dirty array stays with the stock system)";; esac
+		[ -n "$U" ] || die "$p: no Array UUID"
+		[ -z "$UUID0" ] && UUID0=$U && EV0=$E
+		[ "$U" = "$UUID0" ] || die "$p: array UUID $U differs from $UUID0"
+		[ "$E" = "$EV0" ] || die "$p: events $E differ from $EV0 (members out of step)"
+	done
+	say "check passed: 4 members ($*) read-only in the kernel, array $UUID0, events $EV0, clean (examine: $OUT)"
+}
+
+case "${1:-}" in
+check) check ;;
+assemble)
+	check
+	set -- $(members)
+	mdadm --assemble --readonly "$MD" --uuid="$UUID0" "$@" || die "mdadm --assemble --readonly failed"
+	grep -A2 '^md1 ' /proc/mdstat | grep -q '(read-only)' || { mdadm --stop "$MD"; die "md1 is not (read-only) in /proc/mdstat: stopped"; }
+	grep -A2 '^md1 ' /proc/mdstat | grep -q '\[UUUU\]' || { mdadm --stop "$MD"; die "md1 is not [UUUU]: stopped"; }
+	setro_all "$MD"
+	mkdir -p "$MNT"
+	mount -t ext4 -o ro,noload,noatime "$MD" "$MNT" || { mdadm --stop "$MD"; die "mount ro,noload failed: md1 stopped"; }
+	say "md1 assembled read-only, mounted ro,noload at $MNT; events before = $EV0 (compare with stock's mdadm --examine after the return)"
+	grep -A2 '^md1 ' /proc/mdstat
+	;;
+stop)
+	grep -q " $MNT " /proc/mounts && { umount "$MNT" || die "umount $MNT failed (something still uses it)"; }
+	grep -q '^md1 ' /proc/mdstat && { mdadm --stop "$MD" || die "mdadm --stop failed"; }
+	say "stopped (members stay read-only until reboot)"
+	;;
+*) echo "usage: ex4-md-ro check | assemble | stop" >&2; exit 64 ;;
+esac
