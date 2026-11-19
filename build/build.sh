@@ -26,6 +26,7 @@
 #   RUNNO=1               the number the run id starts with (run id = <RUNNO>-l2off-<STAMP>); only a label
 #   CROSS=arm-linux-gnueabi-    the cross toolchain prefix
 #   JOBS=N                parallel make jobs (default: nproc)
+#   WEBUI=1               (v8) the web interface rides in (webui/; run python3 webui/build.py first). Default: off here
 #
 # Needs: sh, python3 (3.8+), make, perl, tar, xz, gzip, sha256sum, md5sum, cpp, dtc (device-tree-compiler), a host C
 # compiler, and an ARM cross gcc + binutils with a glibc for static linking (Debian/Ubuntu: gcc-arm-linux-gnueabi
@@ -159,7 +160,16 @@ set -- --network-file "$WORK/ix4-rootfs/etc/board.d/02_network" --pubkey "$PUB" 
 	--ex4log "$B/ex4log" --log-min-sectors "$LOG_SECTORS" --log-max-sectors "$LOG_SECTORS" --tag ex4-openwrt \
 	--preinit-conf "$WORK/ix4-rootfs/lib/preinit/00_preinit.conf" --ex4fan "$B/ex4fan" --ex4mac --kmods "$WORK/kmods" --ex4phy "$WORK/ex4phy" --out "$B/overlay.cpio"
 [ -z "$LOG_SKIP_PORT" ] || set -- "$@" --log-skip-port "$LOG_SKIP_PORT"
+# v8 (the web lane's patch 2): WEBUI=1 puts the web interface in (HTTPS 443 on the LAN, port 80 redirects, no web login
+# until claimed). Off by default on this path (the official image's kernel); build/v8/build-v8.sh carries it by default.
+if [ "${WEBUI:-0}" = 1 ]; then
+	py "$HERE/../webui/build.py" --check || die "webui/dist is not the build of webui/src: run python3 webui/build.py first"
+	set -- "$@" --webui "$HERE/../webui"
+fi
 py "$HERE/mkoverlay.py" "$@"
+# v8: THE OVERLAY GATE (the v7 image review's nit 3): no bundle with an overlay that lacks the security fix
+if [ "${WEBUI:-0}" = 1 ]; then GATE="--webui $HERE/../webui"; else GATE=--no-webui; fi
+py "$HERE/v8/overlay-gate.py" "$B/overlay.cpio" --pubkey "$PUB" $GATE > "$WORK/overlay-gate.log" 2>&1 || { cat "$WORK/overlay-gate.log" >&2; die "THE OVERLAY GATE refused overlay.cpio (see $WORK/overlay-gate.log)"; }
 cp "$WORK/mod/ex4boot.ko" "$B/ex4boot-l2off.ko"
 cp "$TOP/box/ex4-trial.sh" "$B/ex4-trial.sh"
 KERNEL_ADDR=0x8000; ATAGS_ADDR=0x100; INITRD_ADDR=0x4000000; MARK_A=0x1000; MARK_C=0x3000; MARK_H=0x3000000
