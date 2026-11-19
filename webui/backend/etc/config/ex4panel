@@ -1,0 +1,6 @@
+# What the web interface asks of the front panel. The panel daemon (ex4fan) reads this file (docs/PANEL.md); the
+# interface never opens the micro's serial port. mode 'tierA' = feed the screen WD's own fields with this system's
+# numbers; anything else = send the screen nothing. lcd_sleep_mode and standby are sent only once they are set.
+
+config panel 'main'
+	option mode 'off'
