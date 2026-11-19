@@ -1,0 +1,33 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# stub-mount (tests only) : stands in for `mount -o remount,...` against the FAKE tree's /proc/mounts ($EX4P_ROOT).
+# It emulates what the kernel shows afterwards (deterministically): the atime token replaced in place, lazytime right
+# after it or gone, commit=N before data= (and absent at the default 5). Every option outside ex4-profile's allow-list
+# is a test FAILURE: it logs BAD and exits 99, so a tool that ever passed data=/barrier/... would be caught here.
+R=${EX4P_ROOT:?}
+echo "mount $*" >> "$R/mount.log"
+[ "$1" = -o ] && [ $# = 3 ] || { echo "BAD args: $*" >> "$R/mount.log"; exit 99; }
+OPTS=$2; TGT=$3
+case "$OPTS" in remount,*) ;; *) echo "BAD not a remount: $OPTS" >> "$R/mount.log"; exit 99;; esac
+for t in $(echo "${OPTS#remount,}" | tr ',' ' '); do
+	case "$t" in noatime|relatime|strictatime|lazytime|nolazytime|commit=[0-9]|commit=[0-9][0-9]) ;;
+	*) echo "BAD option: $t" >> "$R/mount.log"; exit 99;; esac
+done
+echo ",${OPTS#remount,}," | awk '{ a = gsub(/,(no|rel|strict)atime,/, "&"); l = gsub(/,(no)?lazytime,/, "&"); c = gsub(/,commit=[0-9]+,/, "&"); exit !(a == 1 && l == 1 && c == 1) }' || { echo "BAD want exactly one atime, one lazytime, one commit: $OPTS" >> "$R/mount.log"; exit 99; }
+awk -v m="$TGT" '$2 == m { f = 1; split($4, o, ","); if (o[1] != "rw") exit 3 } END { exit f ? 0 : 2 }' "$R/proc/mounts" || { echo "BAD not mounted rw: $TGT" >> "$R/mount.log"; exit 32; }
+awk -v m="$TGT" -v want="${OPTS#remount,}" '
+	$2 != m { print; next }
+	{
+		n = split(want, w, ","); at = ""; lz = ""; cm = ""
+		for (i = 1; i <= n; i++) { if (w[i] ~ /atime$/) at = w[i]; else if (w[i] ~ /lazytime$/) lz = w[i]; else if (w[i] ~ /^commit=/) cm = substr(w[i], 8) }
+		k = split($4, o, ","); out = ""
+		for (i = 1; i <= k; i++) {
+			t = o[i]
+			if (t == "lazytime") continue
+			if (t ~ /^commit=/) continue
+			if (t ~ /^(relatime|noatime|strictatime)$/) { if (at != "") t = at; out = out "," t; if (lz == "lazytime") out = out ",lazytime"; continue }
+			if (t ~ /^data=/ && cm != 5) out = out ",commit=" cm
+			out = out "," t
+		}
+		$4 = substr(out, 2); print
+	}' "$R/proc/mounts" > "$R/proc/mounts.new" && mv "$R/proc/mounts.new" "$R/proc/mounts"
