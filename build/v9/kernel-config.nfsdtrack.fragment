@@ -1,0 +1,21 @@
+# build/v9/kernel-config.nfsdtrack.fragment : the k-nfsdtrack KERNEL TWIN (v9.8, Nov 18 2026): the DEFAULT config + this one
+# line, so the default-kernel control runs with the same NFS server start as the ud twin. Read by `build-v9.sh twin-image
+# --twin nfsdtrack`; its lines are also in kernel-config.ud.fragment (tests/build/fragment-union-test.sh proves it).
+# Line kinds: see kernel-config.uaccess.fragment. Bench twin: never a release until its arm passes.
+#
+# WHY (run 17, 17D; dmesg of EVERY nfsd start in runs 16 + 17, 19 starts): "NFSD: Unable to initialize client recovery tracking!
+# (-110)" / "Is nfsdcld running? If not, enable CONFIG_NFSD_LEGACY_CLIENT_TRACKING". 6.12's nfsd4_client_tracking_init
+# (fs/nfsd/nfs4recover.c:2067) tries the nfsdcld pipe (1 s: 10 x 100 ms for a daemon the image does not have, nfsdcld is a
+# package: OUT), and without this option has nothing after it, so NFSv4 runs with NO client recovery store. With it, it falls
+# through to the usermode helper (/sbin/nfsdcltrack: not in the image, fails at once) and then the recovery directory
+# /var/lib/nfs/v4recovery, which box/ex4-rwbench.sh and OpenWrt's /etc/init.d/nfsd both create before rpc.nfsd. The kernel
+# option, no package (no installs). Kconfig (6.12.112 fs/nfsd/Kconfig:164): bool, depends on NFSD_V4 (y here), no select;
+# olddefconfig on v9's kernel .config moves nothing else ($BUILD/v98/kcfg-probe/nfsdtrack.diff: 2 lines). Its MD5
+# (recovery dir names) is CONFIG_CRYPTO_MD5=m with md5.ko in the rootfs (default) or built in (diet / ud).
+# NOT CLAIMED: that this line is the cause of 17D's "rpc.nfsd did not start". The same warning printed on all 19 starts and 18
+# of them started; 17D's rpc.nfsd error text was not captured. It removes a failing path, it does not explain 17D.
+KSTRICT yes
+KCFG CONFIG_NFSD_LEGACY_CLIENT_TRACKING=y
+KWANT CONFIG_NFSD_LEGACY_CLIENT_TRACKING=y
+KWANT # CONFIG_UACCESS_WITH_MEMCPY is not set
+KWANT # CONFIG_JUMP_LABEL is not set
