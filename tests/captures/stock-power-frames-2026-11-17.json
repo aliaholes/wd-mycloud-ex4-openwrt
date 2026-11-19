@@ -1,0 +1,225 @@
+{
+ "what": "WD up_send_ctl + up_send_daemon + up_read_daemon (firmware 2.12.127, md5 in recon.md5) run under qemu-arm on the build box with a fake micro on a pty that ACKs every frame (FA 30 00 00 00 00 FB). Frames only: no WD text, no WD file. Nov 17 2026, panel lane v7. Nothing touched the EX4.",
+ "harness": "cap2.py (private notes, not published) via $BUILD/v7-panel/cap.sh (settle 0.8 s)",
+ "stock_callers_read": {
+  "shutdown.sh (EX4: PROJECT_FEATURE_MCU_SHUTDOWN_REBOOT=1)": "up_send_ctl DeviceShutdown 1; sleep 20; poweroff",
+  "do_reboot": "up_send_ctl DeviceRstMsg; up_send_ctl MCUReset 10",
+  "chk_io": "up_send_ctl DeviceShutdownMsg"
+ },
+ "runs": [
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl DeviceShutdown",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "printed its usage text (an argument is required): nothing sent"
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl DeviceShutdown 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl DeviceShutdown 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303010101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl DeviceShutdownByUPS",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "printed its usage text (an argument is required): nothing sent"
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl MCUReset",
+   "rc": 0,
+   "frames_box_to_mcu": [],
+   "fake_mcu_acks": 0,
+   "note": "printed its usage text (an argument is required): nothing sent"
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl DeviceShutdownMsg",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303040100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl DeviceRstMsg",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303050100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw01",
+   "cmd": "up_send_ctl GetOnCause",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0309000000fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdown 5",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303010105fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdown 20",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303010114fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdown 255",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa03030101fffb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdown 256",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303010100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdown 300",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa030301012cfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdown 65535",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa03030101fffb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl MCUReset 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303020100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl MCUReset 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303020101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl MCUReset 300",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa030302012cfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdownByUPS 0",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303030100fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdownByUPS 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303030101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw02",
+   "cmd": "up_send_ctl DeviceShutdownByUPS 300",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa030303012cfb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw03",
+   "cmd": "up_send_ctl DeviceShutdown 1",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa0303010101fb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  },
+  {
+   "capture": "pw03",
+   "cmd": "up_send_ctl MCUReset 10",
+   "rc": 0,
+   "frames_box_to_mcu": [
+    "fa030302010afb"
+   ],
+   "fake_mcu_acks": 1,
+   "note": ""
+  }
+ ]
+}
