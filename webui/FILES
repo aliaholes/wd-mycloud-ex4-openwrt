@@ -1,0 +1,12 @@
+# What the web interface puts into an image: source (under webui/), destination, mode. One line each; the overlay
+# builder and the emulation test both install from this list, so it cannot drift from what is tested.
+dist/index.html	/www-ex4/index.html	0644
+backend/ex4.uc	/usr/share/rpcd/ucode/ex4.uc	0644
+backend/acl/ex4.json	/usr/share/rpcd/acl.d/ex4.json	0644
+backend/acl/unauthenticated.json	/usr/share/rpcd/acl.d/unauthenticated.json	0644
+backend/libexec/ex4-apply	/usr/libexec/ex4/ex4-apply	0755
+backend/bin/ex4-claim	/usr/sbin/ex4-claim	0755
+backend/share/zones	/usr/share/ex4/zones	0644
+backend/etc/config/ex4	/etc/config/ex4	0600
+backend/etc/config/ex4panel	/etc/config/ex4panel	0600
+backend/etc/uci-defaults/95_ex4_webui	/etc/uci-defaults/95_ex4_webui	0755
