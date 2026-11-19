@@ -66,12 +66,58 @@ ports 80 and 443 do not answer, and the key still logs in.
 
 **What to do.** If you built a bundle before this note, do not run it again: pull this repository and rebuild.
 
+## The web interface (v8 bundles)
+
+A v8 bundle (`build/v8/build-v8.sh`, or `WEBUI=1 build/build.sh`) carries the web interface ([webui/README.md](webui/README.md)).
+While the trial runs it listens on **port 443** of the trial's address (HTTPS, with a certificate the box makes
+itself); **port 80 only redirects** to it. What protects it:
+
+- **No default password.** A fresh trial has no web login at all (first boot removes every rpcd login, root's
+  first, and closes rpcd's own `session.login` door to browsers). The first visitor is asked for an eight-digit code (v9; six in v8)
+  that exists only on the box: `ex4-claim`, run over ssh (key-only, so only the key's owner can read it). Five wrong
+  codes: a new code and a minute's pause. `ex4-claim reset` goes back to unclaimed.
+- **The administrator is not root** and not a Unix account: one rpcd login with the access group `ex4`, which can
+  call the interface's own methods and nothing else (no file read, no command, no uci).
+- **A brake on guessing**, counted before each check, one check at a time: after the second wrong password a
+  lock-out starts and doubles, up to 5 minutes. A new password ends every other session.
+- **Nothing in it can write the array, a partition table or the flash.** Its one write under the data volume is
+  making a new share's folder, refused unless the volume is mounted read-write AND the owner's token is valid for
+  this boot (below). An NFS export that is writable, open to every host (`*`) and does not squash root is refused.
+- **The overlay gate.** `build-v8.sh` / `build-v9.sh` (and `build.sh`) refuse a bundle whose overlay lacks the
+  security fix (root `*`, key-only ssh, exactly your key) or whose web door is not in the state the build asked for
+  (`build/v8/overlay-gate.py`; v9: `build/v9/overlay-gate.py`, which also checks the read-write bench is in, with its
+  clean stop on every reboot path, or entirely out).
+- In a RAM trial every setting made in the interface is gone at the return to stock.
+
+`tests/qemu-e2e.sh` checks the door from outside an emulated trial: 443 serves the page, 80 only redirects, an
+anonymous `session.login`, `ex4.status` or `file.read` is refused ("Access denied"), and no TCP port but 22, 80 and
+443 is open on a LAN address. The self-test asks the same from inside the trial on the real box, and `verdict`
+prints it in its `SECURITY:` line.
+
+## Writing to the array
+
+Up to v8 there was **no read-write command in any bundle of this repository**. **bundle-v9 carries exactly one**:
+`/usr/sbin/ex4-rwbench` ([docs/RWBENCH.md](docs/RWBENCH.md)), the ONLY write path, and it does nothing to the array
+until the owner types, by hand, on the box, the per-session token its `arm` printed (a fresh random nonce each arm;
+one token = one session). Then: a clean array or nothing (and assembled read-only first), sync frozen, writes into
+one new folder only, a bounded window watched by a guard, and a clean stop on every way back, including every way
+the trial reboots by itself. NFS (address trust only) stays off unless asked for. `ex4-md-ro` (v7 to v9) still
+assembles read-only only; since v9 it also refuses a member being rebuilt (Feature Map 0x2, a Recovery Offset). The web interface's one write needs a token in
+`/tmp/ex4-rw-ok` that only counts when it is a regular file (not a link), mode `0600`, owned by root, holding exactly
+one line `rw-ok <this boot's /proc/sys/kernel/random/boot_id>`. A token from another boot, an empty file, a link or a
+file others can read opens nothing. Nothing in this repository writes that file.
+
 ## Security of the trial system
+
+- **Updates (v9).** Releases are signed with our own ed25519 key and expire; the box checks the signature before it
+  reads anything else, refuses a downgrade, an expired release and plain http, and never installs. The image carries
+  no official package feed and no apk key, so nothing reaches it except our signed releases. Everything:
+  [docs/UPDATES.md](docs/UPDATES.md).
 
 - **Key-only.** An OpenWrt initramfs image has no root password. `build.sh` and `build/mkoverlay.py` therefore
   refuse to build without a public key; the overlay installs it, switches ssh password logins off, locks root's
-  empty password field (`*`) and keeps the web server on `127.0.0.1` (see the security note above). Without that,
-  anyone on your LAN could log in as root.
+  empty password field (`*`) and keeps the web server on `127.0.0.1` (see the security note above), or, in a v8
+  bundle, hands it to the web interface (above). Without that, anyone on your LAN could log in as root.
 - **Generate your OWN key** (`ssh-keygen -t ed25519 -f ~/.ssh/ex4-trial`) and keep the private half on your
   computer. This repository contains no key of any kind, and a bundle you build is yours alone: do not share a
   built bundle, because it carries your public key and your choice of log partition size.
@@ -93,11 +139,17 @@ ports 80 and 443 do not answer, and the key still logs in.
 ## The front-panel microcontroller
 
 The micro controls power, LEDs, the LCD and the fan, and can be told to shut the unit down or to update its own
-firmware. `ex4fan` can send eight fixed frames and nothing else (four fan speeds, two thermistor reads, "system
-ready", clock read); the fan-stop frame and every power, LED, LCD, clock-write and upgrade frame are absent from
+firmware. `ex4fan` (v4 to v6) can send eight fixed frames and nothing else (four fan speeds, two thermistor reads,
+"system ready", clock read); the fan-stop frame and every power, LED, clock-write and upgrade frame are absent from
 the binary, which `tests/fan-test.py` checks on the compiled program. If you extend it, keep that property: one
 wrong frame to a power controller is not undone by a reboot. On another firmware version, re-derive the frames
 from your own firmware first (`tests/fan-emu/run_emu.sh`).
+
+The v7/v8 `ex4fan` adds WD's own LCD field frames ([docs/PANEL.md](docs/PANEL.md)): each one is built at run time and
+checked against a whitelist of WD's captured prefixes right before it reaches the port; the screen is fed nothing
+unless you switch it on. A v8 trial's self-test sends ONE LCD frame (the host name, one try) and records whether the
+micro acknowledged it. **WD's power-off frame (`DeviceShutdown`) goes out only through `ex4fan ctl poweroff` on a
+daemon started with `--allow-poweroff`; no trial passes either.**
 
 Do not hold the power button down during a trial: a long press is handled by the micro itself, not by us.
 
