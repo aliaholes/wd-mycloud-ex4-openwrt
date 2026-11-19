@@ -1,0 +1,3 @@
+#!/bin/sh
+# stub-smartctl (tests only): records the call against the fake tree; a drive's standby timer cannot be read back.
+echo "smartctl $*" >> "${EX4P_ROOT:?}/smartctl.log"; exit 0
