@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// build/v9/xor-off.dtsi : EX4_XOR=off (PERF-DESIGN-v2 R1 arm X2, Nov 17 2026). build-v9.sh appends this file to the
+// PREPROCESSED trial DTS (dts/kirkwood-wd-mycloud-ex4.dts, -DEX4_TRIAL) before dtc, so the bundle's kernel sees both
+// orion-xor controllers disabled: mv_xor does not probe, async_tx falls back to the CPU's own xor (lib/raid6 / xor.c).
+// The kernel itself is unchanged (CONFIG_MV_XOR=y stays; only the device tree says the engines are off).
+// The labels are kirkwood.dtsi's own: dma0 = xor@60800 (kirkwood.dtsi:274), dma1 = xor@60900 (kirkwood.dtsi:294).
+// build-v9.sh refuses the result unless the decompiled DTB differs from the default one in exactly these two lines.
+
+&dma0 {
+	status = "disabled";
+};
+
+&dma1 {
+	status = "disabled";
+};
