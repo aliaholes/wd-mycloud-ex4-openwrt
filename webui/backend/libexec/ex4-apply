@@ -1,0 +1,487 @@
+#!/usr/bin/ucode
+// SPDX-License-Identifier: GPL-2.0-or-later
+// ex4-apply : the web interface's helper (installed as /usr/libexec/ex4/ex4-apply, root, mode 0755). The plugin
+// (ex4.uc, inside rpcd) only writes /etc/config/ex4; this turns that into what the services read, and does the few
+// things that need a process. It is started by the plugin as an argv array (never through a shell), one at a time,
+// and by cron for `watch`. Verbs:
+//   sync                  users + groups -> /etc/passwd, /etc/shadow, /etc/group; shares -> /etc/config/samba4 (and
+//                         /etc/config/ksmbd); NFS exports -> /etc/exports; alerts -> /etc/msmtprc; reload what changed
+//   user-pass NAME        sync, then set NAME's SMB password (read from the job's 0600 spool file, never from argv)
+//   user-del NAME         forget NAME's SMB password, then sync
+//   service ID on|off     enable+start or stop+disable the init scripts behind one id of the plugin's allow-list
+//   system                apply a changed name / time zone
+//   net-apply | net-wait  apply /tmp/ex4/net.want; take it back after 90 s unless /tmp/ex4/net.confirmed appears
+//   cert [restart]        a new self-signed certificate with the box's names in it (px5g); `restart` = uhttpd too
+//   alert-test            send one test e-mail
+//   watch                 (cron, every 5 minutes) free space, SMART (every 30 minutes, never waking a sleeping
+//                         drive), array / disk / temperature / space changes -> the events list and e-mail alerts
+//   bundle                a support bundle with addresses and serial numbers masked -> /tmp/ex4/bundle.txt
+//   power restart|halt    stop sharing, flush, unmount the volume, stop the array, then reboot or halt
+//
+// WHAT THIS FILE CAN DO TO THE DISKS: nothing but read. It runs `smartctl -n standby -i -A -H` (asks the drive for
+// its counters; starts no test, changes no setting), `df`, and on `power` the clean stop (umount + mdadm --stop,
+// which writes nothing on a read-only array and marks a read-write one clean). No verb creates, grows, repairs,
+// formats or checks anything, and none writes a file under the data volume.
+//
+// EX4_ROOT (tests only): a folder used as "/" for every FILE this script touches; commands are found through PATH.
+'use strict';
+
+import { readfile, open, lsdir, stat, access, mkdir, unlink, rename, chmod, popen, readlink } from 'fs';
+import { cursor } from 'uci';
+
+const ROOT = getenv('EX4_ROOT') ?? '';
+const JOB = getenv('EX4_JOB') ?? '0';
+const RUN = '/tmp/ex4';
+const NET_WAIT = +(getenv('EX4_NET_WAIT') ?? 90);
+const SERVICES = { smb: [ 'samba4', 'ksmbd' ], nfs: [ 'nfsd' ], find: [ 'wsdd2', 'avahi-daemon' ], ssh: [ 'dropbear' ], time: [ 'sysntpd' ] };
+const HOT_C = 55, SMART_EVERY = 1800;
+
+function P(p) { return ROOT + p; }
+function rd(p) { return readfile(P(p)); }
+function rdt(p) { return trim(rd(p) ?? ''); }
+function words(s) { return filter(split(trim(s ?? ''), /[ \t\n]+/), length); }
+function has(a, v) { return index(a, v) >= 0; }
+function aslist(v) { return type(v) == 'array' ? v : (v == null || v === '') ? [] : [ `${v}` ]; }
+function conf() { return ROOT ? cursor(P('/etc/config'), P('/tmp/ex4-uci-save')) : cursor(); }
+function sections(c, conf, t) { const a = []; c.foreach(conf, t, (s) => { push(a, s); }); return a; }
+function say(msg) {                                         // the job's one line for the page; by hand or from cron: stdout
+	if (JOB == '0') { print(msg + '\n'); return; }
+	const f = open(P(`${RUN}/job-${JOB}.out`), 'w', 384);
+	if (f) { f.write(msg + '\n'); f.close(); }
+}
+function ev(k, a) { const f = open(P(RUN + '/events'), 'a'); if (f) { f.write(sprintf('%J\n', { t: time(), k, a: a ?? {} })); f.close(); } }
+function run(argv) { return system(argv); }                 // an argv array: no shell
+function out_of(cmd) {                                       // a fixed command line (never a browser's word in it)
+	const p = popen(cmd, 'r');
+	if (!p) return null;
+	const s = p.read('all'), rc = p.close();
+	return rc == 0 ? s : null;
+}
+function put(path, data, mode) {                             // beside itself, then renamed over: never half a file
+	const tmp = P(path) + '.ex4new', f = open(tmp, 'w', mode);
+	if (!f) return false;
+	f.write(data); f.close(); chmod(tmp, mode);
+	return rename(tmp, P(path));
+}
+function put_if_changed(path, data, mode) { if (rd(path) === data) return false; put(path, data, mode); return true; }
+function uq(v) { return "'" + replace(`${v}`, /'/g, "'\\''") + "'"; }
+function init(name) { return P(`/etc/init.d/${name}`); }
+function enabled(name) {
+	for (let l in lsdir(P('/etc/rc.d')) ?? []) if (match(l, /^S[0-9]+/) && substr(l, 3) == name) return true;
+	return false;
+}
+function volume(c) {
+	const path = c.get('ex4', 'main', 'volume') ?? '/mnt/md1';
+	for (let l in split(rd('/proc/mounts') ?? '', '\n')) {
+		const w = split(l, ' ');
+		if (length(w) > 3 && w[1] == path) return { path, mounted: true, rw: has(split(w[3], ','), 'rw') };
+	}
+	return { path, mounted: false, rw: false };
+}
+function is_dir(p) { return stat(P(p))?.type == 'directory'; }
+function engine(c) {
+	const want = c.get('ex4', 'main', 'smb_engine');
+	if (want && has(SERVICES.smb, want) && access(init(want))) return want;
+	for (let n in SERVICES.smb) if (access(init(n))) return n;
+	return null;
+}
+
+// ---------------------------------------------------------------- users and groups -> passwd, shadow, group
+// Lines with an id below 1000 (and nobody) belong to the base system and are kept as they are. Ours are 1000-59999:
+// no shell, no home, no Unix password (they exist so the SMB server and file ownership have a name to use).
+function sync_users(c) {
+	const users = sections(c, 'ex4', 'user'), groups = sections(c, 'ex4', 'group');
+	const keep = (text, col) => filter(split(trim(text ?? ''), '\n'), (l) => { const w = split(l, ':'); return length(w) > col && (+w[col] < 1000 || +w[col] >= 60000); });
+	const names = map(users, (u) => u.name);
+	let pw = keep(rd('/etc/passwd'), 2), gr = keep(rd('/etc/group'), 2);
+	let sh = filter(split(trim(rd('/etc/shadow') ?? ''), '\n'), (l) => has(map(pw, (x) => split(x, ':')[0]), split(l, ':')[0]));
+	for (let u in users) { push(pw, `${u.name}:x:${u.uid}:100:${u.name}:/var:/bin/false`); push(sh, `${u.name}:*:0:0:99999:7:::`); }
+	for (let g in groups) push(gr, `${g.name}:x:${g.gid}:${join(',', filter(aslist(g.member), (m) => has(names, m)))}`);
+	let ch = put_if_changed('/etc/passwd', join('\n', pw) + '\n', 420);
+	ch = put_if_changed('/etc/shadow', join('\n', sh) + '\n', 384) || ch;
+	ch = put_if_changed('/etc/group', join('\n', gr) + '\n', 420) || ch;
+	return ch;
+}
+
+// ---------------------------------------------------------------- shares -> the SMB server's own uci file
+// A share is written out ONLY while the volume is mounted and its folder exists: a share pointing at an empty mount
+// point would take a client's files into RAM. On a read-only volume every share is read-only whatever its settings.
+function smb_shares(c) {
+	const vol = volume(c), out = [];
+	if (!vol.mounted) return out;
+	for (let s in sections(c, 'ex4', 'share')) {
+		const path = `${vol.path}/${s.name}`, rw = aslist(s.rw), ro = aslist(s.ro), guest = s.guest ?? 'no';
+		if (!is_dir(path)) continue;
+		if (guest == 'no' && !length(rw) && !length(ro)) continue;         // offered to nobody yet
+		const o = { name: s.name, path, create_mask: '0664', dir_mask: '0775', read_only: 'yes' };
+		if (guest == 'no') o.users = join(' ', [ ...rw, ...ro ]); else o.guest_ok = 'yes';
+		if (vol.rw) { if (guest == 'rw') o.read_only = 'no'; else if (length(rw)) o.write_list = join(' ', rw); }
+		if (s.tm == '1' && vol.rw) o.timemachine = '1';
+		push(out, o);
+	}
+	return out;
+}
+function sync_smb(c) {
+	const sh = smb_shares(c), name = rdt('/proc/sys/kernel/hostname'), wg = c.get('ex4', 'main', 'workgroup') ?? 'WORKGROUP';
+	const tm = length(filter(sh, (s) => s.timemachine == '1')) > 0;
+	let ch = false;
+	if (access(init('samba4')) || access(P('/etc/config/samba4'))) {
+		// the option names are the ones net/samba4/files/samba.init reads (OpenWrt packages feed, 25.12)
+		let t = `# written by ex4-apply from /etc/config/ex4: change shares in the web interface, not here\n\nconfig samba\n\toption workgroup ${uq(wg)}\n\toption description ${uq(name)}\n\toption charset 'UTF-8'\n\toption interface 'lan'\n\toption disable_netbios '1'\n\toption disable_ad_dc '1'\n\toption disable_winbind '1'\n\toption macos '${tm ? 1 : 0}'\n\nconfig procd 'extra'\n\toption samba_nice '5'\n`;
+		for (let s in sh) {
+			t += '\nconfig sambashare\n';
+			for (let k in [ 'name', 'path', 'users', 'guest_ok', 'read_only', 'write_list', 'create_mask', 'dir_mask', 'timemachine' ]) if (s[k] != null) t += `\toption ${k} ${uq(s[k])}\n`;
+		}
+		if (put_if_changed('/etc/config/samba4', t, 384)) { ch = true; if (enabled('samba4')) run([ init('samba4'), 'reload' ]); }
+	}
+	if (access(init('ksmbd')) || access(P('/etc/config/ksmbd'))) {
+		// net/ksmbd-tools/files/ksmbd.init: the same share options, section type `share`, no Time Machine
+		let t = `# written by ex4-apply from /etc/config/ex4: change shares in the web interface, not here\n\nconfig globals\n\toption workgroup ${uq(wg)}\n\toption description ${uq(name)}\n\toption interface 'lan'\n`;
+		for (let s in sh) {
+			t += '\nconfig share\n';
+			for (let k in [ 'name', 'path', 'users', 'guest_ok', 'read_only', 'write_list', 'create_mask', 'dir_mask' ]) if (s[k] != null) t += `\toption ${k} ${uq(s[k])}\n`;
+		}
+		if (put_if_changed('/etc/config/ksmbd', t, 384)) { ch = true; if (enabled('ksmbd')) run([ init('ksmbd'), 'reload' ]); }
+	}
+	return ch;
+}
+
+// ---------------------------------------------------------------- NFS exports -> /etc/exports
+function sync_nfs(c) {
+	const vol = volume(c), sq = { root: 'root_squash', all: 'all_squash', none: 'no_root_squash' };
+	let t = '# written by ex4-apply from /etc/config/ex4: change exports in the web interface, not here\n';
+	if (vol.mounted) for (let e in sections(c, 'ex4', 'export')) {
+		const path = `${vol.path}/${e.share}`;
+		if (!is_dir(path) || !e.clients) continue;
+		const acc = (vol.rw && e.access == 'rw') ? 'rw' : 'ro';
+		t += `${replace(path, / /g, '\\040')} ${e.clients}(${acc},sync,no_subtree_check,${sq[e.squash ?? 'root'] ?? 'root_squash'})\n`;
+	}
+	if (!put_if_changed('/etc/exports', t, 420)) return false;
+	if (enabled('nfsd')) run([ 'exportfs', '-r' ]);
+	return true;
+}
+
+// ---------------------------------------------------------------- e-mail alerts -> /etc/msmtprc (msmtp's own file)
+function sync_alerts(c) {
+	const a = c.get_all('ex4', 'alerts') ?? {};
+	if (!a.host || !a.from) { if (access(P('/etc/msmtprc'))) { unlink(P('/etc/msmtprc')); return true; } return false; }
+	let t = '# written by ex4-apply from /etc/config/ex4\ndefaults\nsyslog on\ntimeout 30\n';
+	if (a.tls == 'none') t += 'tls off\n';
+	else t += `tls on\ntls_starttls ${a.tls == 'tls' ? 'off' : 'on'}\ntls_trust_file /etc/ssl/certs/ca-certificates.crt\n`;
+	t += `account default\nhost ${a.host}\nport ${a.port ?? 587}\nfrom ${a.from}\n`;
+	if (a.user) t += `auth on\nuser ${a.user}\npasswordeval "cat /etc/ex4/smtp-pass"\n`; else t += 'auth off\n';
+	return put_if_changed('/etc/msmtprc', t, 384);
+}
+function rfc_date() {
+	const g = gmtime(), d = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ], m = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ];
+	return sprintf('%s, %02d %s %04d %02d:%02d:%02d +0000', d[g.wday % 7], g.mday, m[g.mon - 1], g.year, g.hour, g.min, g.sec);
+}
+function mail(c, subject, body) {
+	const a = c.get_all('ex4', 'alerts') ?? {}, name = rdt('/proc/sys/kernel/hostname');
+	if (!a.to || !a.from || !access(P('/etc/msmtprc'))) return false;
+	const p = popen(`msmtp -C '${ROOT}/etc/msmtprc' -t`, 'w');
+	if (!p) return false;
+	p.write(`From: ${name} <${a.from}>\nTo: ${a.to}\nSubject: [${name}] ${subject}\nDate: ${rfc_date()}\nContent-Type: text/plain; charset=utf-8\n\n${body}\n\n-- \n${name}, sent by the box itself. It talks to your mail server and to nothing else.\n`);
+	const ok = p.close() == 0;
+	const f = open(P(RUN + '/alert.last'), 'w', 384);
+	if (f) { f.write(`t=${time()} ok=${ok ? 1 : 0}\n`); f.close(); }
+	return ok;
+}
+
+function sync_all() {
+	const c = conf();
+	const u = sync_users(c), s = sync_smb(c), n = sync_nfs(c), a = sync_alerts(c);
+	say(`synced: users ${u ? 'changed' : 'same'}, smb ${s ? 'changed' : 'same'}, nfs ${n ? 'changed' : 'same'}, alerts ${a ? 'changed' : 'same'}`);
+	return 0;
+}
+
+// ---------------------------------------------------------------- SMB passwords: stdin only
+function user_pass(name) {
+	const c = conf(), spool = P(`${RUN}/job-${JOB}.in`), pw = readfile(spool);
+	unlink(spool);
+	if (!match(name ?? '', /^[a-z][a-z0-9_-]{0,30}$/) || !length(filter(sections(c, 'ex4', 'user'), (u) => u.name == name))) { say('no such person'); return 1; }
+	if (pw == null || !length(pw)) { say('no password arrived'); return 1; }
+	sync_users(c);
+	const e = engine(c);
+	let rc = 0;
+	if (e == 'samba4' || (!e && out_of('command -v smbpasswd') != null)) {
+		const p = popen(`smbpasswd -s -a '${name}' >/dev/null 2>&1`, 'w');          // name: checked against the pattern above
+		if (!p) rc = 1; else { p.write(`${pw}\n${pw}\n`); rc = p.close(); }
+	}
+	else if (e == 'ksmbd') {
+		const p = popen(`ksmbd.adduser -a '${name}' >/dev/null 2>&1`, 'w');
+		if (!p) rc = 1; else { p.write(`${pw}\n${pw}\n`); rc = p.close(); }
+	}
+	else { say('no SMB server is installed: the person is stored, the password is not'); sync_smb(c); return 1; }
+	sync_smb(c); sync_nfs(c);
+	say(rc == 0 ? `password set for ${name}` : `the SMB server refused the password for ${name}`);
+	return rc == 0 ? 0 : 1;
+}
+function user_del(name) {
+	const c = conf();
+	if (!match(name ?? '', /^[a-z][a-z0-9_-]{0,30}$/)) return 1;
+	const e = engine(c);
+	if (e == 'samba4') run([ 'smbpasswd', '-x', name ]);
+	else if (e == 'ksmbd') run([ 'ksmbd.adduser', '-d', name ]);
+	sync_users(c); sync_smb(c); sync_nfs(c);
+	say(`removed ${name}`);
+	return 0;
+}
+
+function service(id, onoff) {
+	const c = conf();
+	if (!exists(SERVICES, id) || !has([ 'on', 'off' ], onoff)) { say('no such service'); return 1; }
+	let names = filter(SERVICES[id], (n) => !!access(init(n)));
+	if (id == 'smb') { const e = engine(c); names = e ? [ e ] : []; }
+	if (!length(names)) { say('that service is not installed in this image'); return 1; }
+	if (onoff == 'on') { sync_users(c); sync_smb(c); sync_nfs(c); }
+	for (let n in names) {
+		if (onoff == 'on') { run([ init(n), 'enable' ]); run([ init(n), 'start' ]); }
+		else { run([ init(n), 'stop' ]); run([ init(n), 'disable' ]); }
+	}
+	say(`${id} ${onoff}`);
+	return 0;
+}
+
+function system_apply() {
+	const c = conf(), sys = sections(c, 'system', 'system')[0];
+	if (sys?.hostname) { const f = open(P('/proc/sys/kernel/hostname'), 'w'); if (f) { f.write(sys.hostname + '\n'); f.close(); } }
+	if (access(init('system'))) run([ init('system'), 'reload' ]);
+	sync_smb(c);
+	say('name and clock applied');
+	return 0;
+}
+
+// ---------------------------------------------------------------- the address. Applied, then taken back after
+// NET_WAIT seconds unless the browser confirms from the new address (net_confirm -> /tmp/ex4/net.confirmed).
+function net_write(c, w) {
+	const plain = c.get('ex4', 'main', 'lan_device') ?? c.get('network', 'lan', 'device');
+	if (!c.get_all('network', 'lan')) return false;
+	if (!c.get('ex4', 'main', 'lan_device') && plain && plain != 'bond-bond0') { c.set('ex4', 'main', 'lan_device', plain); c.commit('ex4'); }
+	if (w.bond == 'active-backup') {
+		// net/bonding/files/lib/netifd/proto/bonding.sh: the device is named bond-<section>
+		c.set('network', 'bond0', 'interface'); c.set('network', 'bond0', 'proto', 'bonding');
+		c.set('network', 'bond0', 'bonding_policy', 'active-backup'); c.set('network', 'bond0', 'slaves', [ 'eth0', 'eth1' ]);
+		c.set('network', 'bond0', 'link_monitoring', 'mii'); c.set('network', 'bond0', 'miimon', '100');
+		c.set('network', 'lan', 'device', 'bond-bond0');
+	}
+	else {
+		if (c.get_all('network', 'bond0')) c.delete('network', 'bond0');
+		if (plain && plain != 'bond-bond0') c.set('network', 'lan', 'device', plain);
+	}
+	for (let k in [ 'ipaddr', 'netmask', 'gateway', 'dns' ]) c.delete('network', 'lan', k);
+	if (w.mode == 'static') {
+		c.set('network', 'lan', 'proto', 'static'); c.set('network', 'lan', 'ipaddr', w.addr); c.set('network', 'lan', 'netmask', w.mask);
+		if (w.gw) c.set('network', 'lan', 'gateway', w.gw);
+		if (length(w.dns ?? [])) c.set('network', 'lan', 'dns', w.dns);
+	}
+	else c.set('network', 'lan', 'proto', 'dhcp');
+	c.commit('network');
+	return true;
+}
+function net_apply() {
+	let w = null;
+	try { w = json(rd(RUN + '/net.want')); } catch (e) { w = null; }
+	unlink(P(RUN + '/net.want'));
+	if (type(w) != 'object' || !has([ 'dhcp', 'static' ], w.mode)) { say('no network change was waiting'); return 1; }
+	const old = rd('/etc/config/network');
+	if (old == null) { say('this system has no network settings file'); return 1; }
+	put(RUN + '/network.rollback', old, 384);
+	if (!net_write(conf(), w)) { unlink(P(RUN + '/network.rollback')); say('this system has no interface named lan'); return 1; }
+	put(RUN + '/net.pending', `${time() + NET_WAIT}\n`, 384);
+	// the waiter must outlive this job: a fixed command line, nothing of the browser's in it
+	system(`'${P('/usr/libexec/ex4/ex4-apply')}' net-wait >/dev/null 2>&1 &`);
+	run([ init('network'), 'reload' ]);
+	say(`applied; the old settings come back in ${NET_WAIT} s unless confirmed`);
+	return 0;
+}
+function net_wait() {
+	const until = +(words(rd(RUN + '/net.pending'))[0] ?? 0);
+	while (time() < until && !access(P(RUN + '/net.confirmed'))) sleep(1000);
+	if (access(P(RUN + '/net.confirmed'))) ev('net_kept', {});
+	else {
+		const old = rd(RUN + '/network.rollback');
+		if (old != null) { put('/etc/config/network', old, 384); run([ init('network'), 'reload' ]); }
+		ev('net_rollback', {});
+	}
+	for (let f in [ 'net.pending', 'net.confirmed', 'network.rollback' ]) unlink(P(`${RUN}/${f}`));
+	return 0;
+}
+
+// ---------------------------------------------------------------- the certificate (px5g is in the base image)
+function uc_fp(hex) {                                         // "AB12 CD34 ..." the first 16 hex digits are what a person compares
+	const u = uc(hex ?? ''), out = [];
+	for (let i = 0; i < length(u); i += 4) push(out, substr(u, i, 4));
+	return join(':', out);
+}
+
+function cert(restart) {
+	// Two names, each as its own -addext: this px5g takes one name per option (a comma list becomes ONE odd name)
+	// and writes an address entry (IP:) in a form no browser accepts. Both seen under emulation; so: names only.
+	const name = rdt('/proc/sys/kernel/hostname') || 'ex4', names = [ `DNS:${name}`, `DNS:${name}.local` ], shown = [ name, `${name}.local` ];
+	const days = 825, crt = P('/etc/uhttpd.crt'), key = P('/etc/uhttpd.key');
+	const rc = run([ 'px5g', 'selfsigned', '-der', '-days', `${days}`, '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256',
+		'-keyout', key + '.new', '-out', crt + '.new', '-subj', `/O=EX4 ${name}/CN=${name}`,
+		'-addext', 'extendedKeyUsage=serverAuth', '-addext', 'subjectAltName=' + names[0], '-addext', 'subjectAltName=' + names[1] ]);
+	if (rc != 0 || !(stat(crt + '.new')?.size > 0)) { unlink(crt + '.new'); unlink(key + '.new'); say('the certificate could not be made'); return 1; }
+	chmod(key + '.new', 384); rename(key + '.new', key); rename(crt + '.new', crt);
+	const sum = match(out_of(`sha256sum '${crt}'`) ?? '', /^([0-9a-f]{64})/);
+	mkdir(P('/etc/ex4'), 448);
+	put('/etc/ex4/cert.info', `fp=${sum ? uc_fp(sum[1]) : ''} names=${join(',', shown)} made=${time()} days=${days}\n`, 420);
+	say('a new certificate is in place' + (restart ? '; the web server restarts now, your browser will ask once more' : ''));
+	if (restart) system(`(sleep 2; '${init('uhttpd')}' restart) >/dev/null 2>&1 &`);
+	return 0;
+}
+// ---------------------------------------------------------------- the watcher (cron)
+function sata_disks() {
+	const a = [];
+	for (let d in sort(lsdir(P('/sys/block')) ?? [])) {
+		if (!match(d, /^sd[a-z]$/)) continue;
+		if (index(readlink(P(`/sys/block/${d}`)) ?? '', '/usb') >= 0) continue;
+		push(a, d);
+	}
+	return a;
+}
+function smart_read(d) {                                     // -n standby: a sleeping drive is left asleep
+	const o = { t: time(), dev: d };
+	let old = null;
+	try { old = json(rd(`${RUN}/smart/${d}.json`)); } catch (e) { old = null; }
+	const p = popen(`smartctl -n standby --json=c -i -A -H /dev/${d} 2>/dev/null`, 'r');
+	if (!p) return old;
+	const text = p.read('all'); p.close();
+	let j = null;
+	try { j = json(text); } catch (e) { j = null; }
+	if (type(j) != 'object') return old;
+	if (!j.ata_smart_attributes && old) { old.power = 'standby'; old.checked = o.t; return old; }
+	o.model = j.model_name ?? null; o.serial = j.serial_number ?? null; o.power = 'active';
+	o.passed = j.smart_status?.passed ?? null; o.a = {};
+	for (let r in (j.ata_smart_attributes?.table ?? [])) if (has([ 5, 9, 12, 193, 194, 197, 198, 199 ], r.id)) o.a[`${r.id}`] = (r.id == 194 || r.id == 9) ? (r.raw?.value ?? 0) & 0xffffffff : r.raw?.value ?? 0;
+	if (o.a['194'] != null) o.a['194'] = o.a['194'] & 0xff;
+	return o;
+}
+function watch() {
+	const c = conf(), vol = volume(c), a = c.get_all('ex4', 'alerts') ?? {}, on = a.enabled == '1', want = aslist(a.events);
+	let st = {};
+	try { st = json(rd(RUN + '/watch.state')) ?? {}; } catch (e) { st = {}; }
+	const now = { arr: 'closed', disks: {}, hot: false, full: false }, mails = [];
+	const note = (cls, k, args, subject, body) => { ev(k, args); if (on && has(want, cls)) push(mails, [ subject, body ]); };
+
+	// free space: one df, here, so the page never has to ask the file system
+	let pct = null;
+	if (vol.mounted) {
+		const w = words(split(out_of(`df -k '${P(vol.path)}'`) ?? '', '\n')[1]);
+		if (length(w) >= 4 && +w[1] > 0) { put(RUN + '/space', `${w[1]} ${w[2]} ${w[3]} ${time()}\n`, 420); pct = int(100.0 * (+w[2]) / (+w[1])); }
+	}
+	else unlink(P(RUN + '/space'));
+	now.full = pct != null && pct >= +(a.space_pct ?? 90);
+	if (now.full && !st.full) note('space', 'space_low', { pct }, `The volume is ${pct}% full`, `The data volume is ${pct}% full. Nothing is lost; make room when you can.`);
+
+	// SMART, every SMART_EVERY seconds
+	mkdir(P(RUN + '/smart'), 448);
+	for (let d in sata_disks()) {
+		const f = `${RUN}/smart/${d}.json`, age = time() - (stat(P(f))?.mtime ?? 0);
+		let s = null;
+		if (age >= SMART_EVERY) { s = smart_read(d); if (s) put(f, sprintf('%J\n', s), 384); }
+		else try { s = json(rd(f)); } catch (e) { s = null; }
+		const x = s?.a ?? {};
+		now.disks[d] = (s?.passed === false) ? 'fail' : ((x['5'] ?? 0) > 0 || (x['197'] ?? 0) > 0 || (x['198'] ?? 0) > 0) ? 'watch' : 'ok';
+		const was = st.disks?.[d] ?? 'ok', rank = { ok: 0, watch: 1, fail: 2 };
+		if (rank[now.disks[d]] > rank[was])
+			note('disk', 'disk_' + now.disks[d], { dev: d, realloc: x['5'] ?? 0, pending: x['197'] ?? 0, uncorrect: x['198'] ?? 0 },
+				now.disks[d] == 'fail' ? `Disk ${d} reports it is failing` : `Disk ${d} wants watching`,
+				`Disk ${d} (${s?.model ?? '?'}, serial ${s?.serial ?? '?'}): moved sectors ${x['5'] ?? 0}, unreadable ${x['197'] ?? 0}, uncorrectable ${x['198'] ?? 0}.\n` +
+				(now.disks[d] == 'fail' ? 'Replace this disk. Your files are safe as long as the other three hold.' : 'The array is still whole and your files are safe. Nothing to do today; if the count grows, replace that disk.'));
+		if ((x['194'] ?? 0) >= HOT_C) now.hot = true;
+	}
+
+	// the array, from sysfs
+	let md = null, size = -1;
+	for (let d in lsdir(P('/sys/block')) ?? []) if (match(d, /^md[0-9]+$/) && +rdt(`/sys/block/${d}/size`) > size) { size = +rdt(`/sys/block/${d}/size`); md = d; }
+	if (md) {
+		const g = (f) => rdt(`/sys/block/${md}/md/${f}`), deg = +g('degraded'), act = g('sync_action');
+		now.arr = has([ 'inactive', 'clear' ], g('array_state')) || deg > 1 ? 'down' : deg > 0 ? (act == 'recover' ? 'rebuild' : 'failed') : has([ 'recover', 'resync' ], act) ? 'rebuild' : 'ok';
+		const was = st.arr ?? 'ok';
+		if (now.arr != was && was != 'closed') {
+			if (now.arr == 'down') note('raid', 'array_down', {}, 'The array is down', 'The array cannot be read. Do not pull or swap disks; look at the box\'s Storage page first.');
+			else if (now.arr == 'failed') note('raid', 'array_degraded', {}, 'A disk has dropped out of the array', 'The array runs on three disks. Your files are still safe, but there is no spare until the fourth is replaced.');
+			else if (now.arr == 'rebuild') note('raid', 'array_rebuild', {}, 'The array is rebuilding', 'The array is rebuilding onto its fourth disk. You can keep using the box; it will be slower until this is done.');
+			else if (now.arr == 'ok') note('raid', 'array_ok', {}, 'The array is whole again', 'All disks are in step. Nothing more to do.');
+		}
+	}
+
+	// temperature: the panel daemon's reading beats SMART's (it is fresher)
+	for (let p in split(match(rd('/tmp/ex4fan.status') ?? '', /drives=([^ ]*)/)?.[1] ?? '', ',')) { const m = match(p, /^sd[a-z]:([0-9]+)$/); if (m && +m[1] >= HOT_C) now.hot = true; }
+	if (now.hot && !st.hot) note('temp', 'hot', {}, 'A disk is running hot', `A disk has reached ${HOT_C} C or more. Check that the fan turns and the vents are clear.`);
+	if (!now.hot && st.hot) ev('cool', {});
+
+	put(RUN + '/watch.state', sprintf('%J\n', now), 384);
+	for (let m in mails) mail(c, m[0], m[1]);
+
+	// keep the events file short
+	const lines = split(trim(rd(RUN + '/events') ?? ''), '\n');
+	if (length(lines) > 400) put(RUN + '/events', join('\n', slice(lines, -200)) + '\n', 384);
+	return 0;
+}
+
+function alert_test() {
+	const c = conf();
+	sync_alerts(c);
+	const ok = mail(c, 'Test message', 'This is the test you asked for. If you can read it, alerts will reach you.');
+	say(ok ? 'the mail server took the test message' : 'the test message was not accepted: check the server, port, encryption and password');
+	ev('alert_test', { ok });
+	return ok ? 0 : 1;
+}
+
+// ---------------------------------------------------------------- support bundle: logs, masked
+function bundle() {
+	let t = `ex4 support bundle, made ${rfc_date()}\naddresses, hardware addresses and serial numbers are masked\n`;
+	const add = (title, text) => { t += `\n==== ${title}\n${text ?? '(nothing)'}\n`; };
+	add('release', rd('/etc/openwrt_release')); add('kernel', rdt('/proc/sys/kernel/osrelease')); add('uptime', rdt('/proc/uptime'));
+	add('mdstat', rd('/proc/mdstat')); add('mounts', rd('/proc/mounts')); add('meminfo', rd('/proc/meminfo'));
+	add('ex4fan', rd('/tmp/ex4fan.status')); add('watch', rd(RUN + '/watch.state')); add('events', rd(RUN + '/events'));
+	add('log (last 400 lines)', out_of('logread 2>/dev/null | tail -n 400'));
+	for (let d in sata_disks()) add(`smart ${d}`, rd(`${RUN}/smart/${d}.json`));
+	for (let d in sata_disks()) {                             // every serial number, wherever it appears
+		let s = null;
+		try { s = json(rd(`${RUN}/smart/${d}.json`)); } catch (e) { s = null; }
+		if (type(s?.serial) == 'string' && length(s.serial) > 3) t = join(`SERIAL-${d}`, split(t, s.serial));
+	}
+	t = replace(t, /([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\.[0-9]{1,3}/g, '$1.x');
+	t = replace(t, /([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/g, 'xx:xx:xx:xx:xx:xx');
+	put(RUN + '/bundle.txt', substr(t, 0, 390000), 384);
+	say('the bundle is ready');
+	return 0;
+}
+
+// ---------------------------------------------------------------- restart / shut down: always the clean stop first
+function power(what) {
+	const c = conf(), vol = volume(c);
+	if (!has([ 'restart', 'halt' ], what)) return 1;
+	say(what == 'restart' ? 'restarting' : 'shutting down');
+	for (let n in [ 'samba4', 'ksmbd', 'nfsd' ]) if (access(init(n))) run([ init(n), 'stop' ]);
+	run([ 'sync' ]);
+	if (vol.mounted) run([ 'umount', P(vol.path) ]);
+	for (let d in lsdir(P('/sys/block')) ?? []) if (match(d, /^md[0-9]+$/) && out_of('command -v mdadm') != null) run([ 'mdadm', '--stop', `/dev/${d}` ]);
+	run([ 'sync' ]);
+	return run([ what == 'restart' ? 'reboot' : 'halt' ]);
+}
+
+mkdir(P(RUN), 448);
+const verb = ARGV[0];
+let rc = 2;
+switch (verb) {
+case 'sync': rc = sync_all(); break;
+case 'user-pass': rc = user_pass(ARGV[1]); break;
+case 'user-del': rc = user_del(ARGV[1]); break;
+case 'service': rc = service(ARGV[1], ARGV[2]); break;
+case 'system': rc = system_apply(); break;
+case 'net-apply': rc = net_apply(); break;
+case 'net-wait': rc = net_wait(); break;
+case 'cert': rc = cert(ARGV[1] == 'restart'); break;
+case 'alert-test': rc = alert_test(); break;
+case 'watch': rc = watch(); break;
+case 'bundle': rc = bundle(); break;
+case 'power': rc = power(ARGV[1]); break;
+default: warn('usage: ex4-apply sync | user-pass NAME | user-del NAME | service ID on|off | system | net-apply | cert [restart] | alert-test | watch | bundle | power restart|halt\n');
+}
+exit(rc);
