@@ -1,0 +1,11 @@
+{
+	"unauthenticated": {
+		"description": "EX4 web interface: what a browser may call before it has signed in. This file REPLACES rpcd's own unauthenticated.json, which grants session.login: here the only doors are ex4.sign_in (throttled) and the first-boot claim.",
+		"read": {
+			"ubus": {
+				"session": [ "access" ],
+				"ex4": [ "setup_state", "setup_claim", "sign_in" ]
+			}
+		}
+	}
+}
