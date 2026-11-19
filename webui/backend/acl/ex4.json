@@ -1,0 +1,20 @@
+{
+	"ex4": {
+		"description": "EX4 web interface. A login with `read ex4` may look; with `write ex4` it may also change settings. No method here can write the array, a partition table or the flash, run a command of the caller's choosing, or read a file of the caller's choosing. `session destroy` is sign-out: the web server puts the caller's own session id into every call, so a session can only end itself.",
+		"read": {
+			"ubus": {
+				"ex4": [ "status", "events", "disks", "array", "shares", "users", "services", "alerts", "system", "panel", "bundle_get" ],
+				"session": [ "destroy" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"ex4": [ "share_add", "share_set", "share_remove", "export_add", "export_set", "export_remove",
+				         "user_add", "user_passwd", "user_remove", "group_add", "group_set", "group_remove",
+				         "service_set", "alerts_set", "alerts_test", "system_set", "net_set", "net_confirm",
+				         "keeper_passwd", "signout_all", "cert_renew", "restart", "shutdown", "trial_stay",
+				         "support_bundle", "panel_set" ]
+			}
+		}
+	}
+}
