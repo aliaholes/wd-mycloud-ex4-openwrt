@@ -30,10 +30,16 @@ while time.time() - t0 < secs:
     while buf and buf[0] != 0xfa:            # line noise when the guest's UART comes up: recorded, not a frame
         buf = buf[1:]
     while len(buf) >= 7:
-        f = buf[:7]; buf = buf[7:]; frames.append([round(time.time() - t0, 3), f.hex()])
+        # v8: a frame runs from FA to the first FB (WD's LCD frames, FA 04 ..., are longer than 7 bytes; no byte inside any
+        # whitelisted frame is FB); with no FB in the first 24 bytes, 7 bytes as before
+        e = buf.find(b"\xfb", 6, 24)
+        if e < 0 and len(buf) < 24 and b"\xfb" not in buf[6:]: break        # wait for the rest of a long frame
+        n = e + 1 if e >= 0 else 7
+        f = buf[:n]; buf = buf[n:]; frames.append([round(time.time() - t0, 3), f.hex()])
         if first is None: first = time.time()
         if silent: continue
-        if f[1] == 0x02 and f[2] == 0x00: s.sendall(ACK)
+        if f[1] == 0x04: s.sendall(ACK)          # v8: an LCD frame (the self-test's ONE send-test frame): ACK, as the real micro is hoped to
+        elif f[1] == 0x02 and f[2] == 0x00: s.sendall(ACK)
         elif f[1] == 0x03 and f[2] == 0x08 and f[3] in (1, 2): s.sendall(ACK + bytes([0xfa, 3, 8, f[3], 0, RAW[f[3]], 0xfb]))
         elif f.hex() == "fa0301000000fb": s.sendall(ACK)
         elif f.hex() == "fa0100030100fb": s.sendall(ACK + clock)
