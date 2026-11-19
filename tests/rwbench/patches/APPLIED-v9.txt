@@ -1,0 +1,10 @@
+These three diffs are the v8 bench lane's, kept as the record of what was applied. Since v9 (Nov 17 2026) they are IN
+the tree; nothing applies them any more (tests/rwbench/patch-test.sh checks the result in the tree instead).
+
+  mkoverlay-rwbench.diff   applied to build/mkoverlay.py as is (clean). v9 adds one line of its own: the overlay stamp
+                           says " rwbench=1" when --rwbench is given (without it the overlay is byte-identical to the
+                           pre-patch one, which patch-test.sh proves against build/mkoverlay.py.bak-20261117-v9).
+  ex4fan-rwbench.diff      applied to userland/ex4fan.c as is: its base was 29c034db, today's file (the panel lane's,
+                           md5 7e7b46c4 before the patch) took it at offset 3 lines, no conflict, no hand edit.
+  build-v7-rwbench.diff    not applied to build/v7 (frozen history); its one line lives in build/v9/build-v9.sh as
+                           [ "$RWB" = 1 ] && set -- "$@" --rwbench "$TOP/box/ex4-rwbench.sh"  (RWB = EX4_RWBENCH, 0|1).
