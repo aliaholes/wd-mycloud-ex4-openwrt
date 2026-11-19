@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: GPL-2.0-or-later
+# /etc/init.d/ex4-profile : at boot, apply the profile chosen on the Storage page (ex4.main.profile). Late (99): the
+# live knobs take now; the array's and the volume's wait (and say so) until they exist. Whoever assembles the array
+# or mounts the volume runs `ex4-profile reapply` afterwards (docs/PROFILES.md, "Boot").
+START=99
+boot() { /usr/sbin/ex4-profile boot >/dev/null 2>&1; }
+start() { /usr/sbin/ex4-profile reapply >/dev/null 2>&1; }
+stop() { :; }
