@@ -1,0 +1,18 @@
+# The web interface's own settings (webui/README.md). Written by the interface; `uci` works on it too.
+# Nothing in here is a password: the administrator's hash is in /etc/config/rpcd, SMB passwords are the SMB
+# server's, the mail password is /etc/ex4/smtp-pass (0600).
+
+config main 'main'
+	option claimed '0'
+	option volume '/mnt/md1'
+	option workgroup 'WORKGROUP'
+
+config alerts 'alerts'
+	option enabled '0'
+	option port '587'
+	option tls 'starttls'
+	option space_pct '90'
+	list events 'disk'
+	list events 'raid'
+	list events 'temp'
+	list events 'space'
