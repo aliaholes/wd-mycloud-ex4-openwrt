@@ -1,0 +1,13 @@
+# build/v9/kernel-config.uaccess.fragment : the k-uaccess KERNEL TWIN (FABLE-OPT F3 = kernel lane K1; trial 3). Bench twin:
+# never a release until its arm passes. Read by `build-v9.sh twin-image --twin uaccess`. Line kinds (twin-image's header):
+#   OWRT line   -> OpenWrt's top .config (CONFIG_KERNEL_X; kernel-defaults.mk copies it over the target config as CONFIG_X)
+#   KCFG line   -> target/linux/kirkwood/config-6.12 (symbols OpenWrt has no CONFIG_KERNEL_ for; overrides generic/config-6.12)
+#   OMAY SYM    -> a top .config symbol allowed to change because its parent did   KMAY SYM -> the same for the kernel .config
+#   KWANT line  -> must be in the BUILT kernel's .config verbatim                  KSTRICT yes -> the built kernel .config may
+#                  differ from v9's only in symbols named here (OWRT as CONFIG_X, KCFG, KMAY)
+KSTRICT yes
+# copy_to_user / clear_user >= 64 B through memcpy / memset (8-word stores under a pinned PTE) instead of one 32-bit store at a
+# time (CPU_USE_DOMAINS=y): Kconfig's own default for Feroceon (arch/arm/Kconfig:1324), stock WD had it (W/.config:513),
+# OpenWrt's generic config forces it off (generic/config-6.12:6956). Touches local reads, dd's zeroing, Samba's recv; not nfsd.
+KCFG CONFIG_UACCESS_WITH_MEMCPY=y
+KWANT CONFIG_UACCESS_WITH_MEMCPY=y
