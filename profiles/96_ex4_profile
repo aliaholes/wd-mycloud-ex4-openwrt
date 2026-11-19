@@ -1,0 +1,10 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# 96_ex4_profile : first boot. A fresh box starts on Balanced (the owner picks on the Storage page); the boot hook is
+# enabled. Idempotent; uci-defaults runs it once and removes it. EX4_ROOT (tests only): a folder used as "/".
+R=${EX4_ROOT:-}
+uci() { if [ -n "$R" ]; then command uci -c "$R/etc/config" "$@"; else command uci "$@"; fi; }
+[ -n "$(uci -q get ex4.main.profile)" ] || uci -q set ex4.main.profile='balanced'
+uci -q commit ex4
+[ -n "$R" ] || /etc/init.d/ex4-profile enable 2>/dev/null
+exit 0
