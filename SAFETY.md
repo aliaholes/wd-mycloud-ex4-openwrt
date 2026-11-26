@@ -14,9 +14,12 @@ Read the warning at the top of [README.md](README.md) first. This page is the de
 | The trial runs but you cannot reach it | it reboots to stock after 20 minutes by itself (a second timer fires at 22 minutes) | never needed |
 | Stock comes back after an unclean stop | it checks the data volume before mounting it (about 4 minutes on our unit); the RAID may resync | the check: yes; a resync: never |
 
-The stock system is never modified: the NAND is not written by anything in this repository, and the device tree
+The stock system is never modified by the trial: nothing the trial runs writes the NAND, and the device tree
 given to the new kernel marks all seven flash partitions `read-only` (the build checks the compiled tree for
-that, and so does `tests/dtb_check.py`).
+that, and so does `tests/dtb_check.py`). The one file in this repository that can write flash is
+`box/ex4-install.sh`, the planned installer for a later step: it ships with `ARMED=0` (its `write` and `restore`
+refuse before any flash command), it has never written flash on any unit, and the trial never calls it. The
+flash install is not done and not proven: [INSTALL.md](INSTALL.md) says why, and how a box can be lost to it.
 
 ## The one disk write
 
