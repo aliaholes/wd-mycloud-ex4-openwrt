@@ -15,8 +15,9 @@
 # INSTALL.md, on a unit where the SAME uRamdisk has already booted from RAM (file STAGE2-PROVEN in this folder holds
 # its md5: see wall 6). Never write STAGE2-PROVEN by hand for an image you have not booted from RAM yourself.
 # Status Nov 26 2026: on the one test unit, `plan` has run (Nov 16 with an older image, Nov 26 with the current one)
-# and `write` has run once only to its ARMED=0 refusal. `backup` and `restore` have never run on hardware. Nothing
-# here has written flash, anywhere.
+# and `write` has run to its ARMED=0 refusal. Nov 26 2026 12:00 on that unit: `backup` ran, then `write` (from an armed
+# COPY) wrote mtd2, read back equal, and the box rebooted through real U-Boot into WD as before. `restore` has never
+# run on hardware.
 ARMED=0
 TARGET=/dev/mtd2
 TARGET_NAME=ramdisk
