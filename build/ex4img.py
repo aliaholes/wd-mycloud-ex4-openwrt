@@ -24,6 +24,11 @@
                                   U-Boot's OWN list, read live from the box's RAM (physical 0x100; stock keeps that page),
                                   re-emitted tag for tag, byte for byte, with ONE change: TOKEN appended to the command
                                   line (size worked out the way U-Boot 1.1.4 does: (8 + strlen + 1 + 4) >> 2 words).
+                                  Nov 26 2026: [--initrd ADDR,SIZE] = a second change, INITRD2's start and size (the
+                                  stage-2 ramdisk RAM proof: a bigger ramdisk than the one U-Boot loaded).
+  rduimage GZ OUT --time HEX [--name Ramdisk] [--load 0x00e00000] [--max BYTES]
+                                  wrap gzip data as a legacy ramdisk uImage (os linux, arch arm, type ramdisk, comp gzip):
+                                  the header mkimage -T ramdisk -C gzip writes, by our own code (mkstage2.sh).
   marker OUT --run ID --pos N --total N --dest HEX
                                   one 4096-byte RAM marker block (layout: userland/ex4peek.c, `marker`), loaded by ex4boot as
                                   one more segment at --dest.
@@ -121,6 +126,28 @@ def c_uimage(a):
     if a.max and len(out) > a.max:
         sys.exit(f"REFUSED: uImage is {len(out)} bytes, over --max {a.max}")
     wr(a.out, out)
+
+
+def c_rduimage(a):
+    """Nov 26 2026 (stage-2 v1): our own writer for the ramdisk uImage header, so mkstage2.sh needs no mkimage
+    (u-boot-tools is not on the build box, and nothing gets installed). Same fields mkimage -T ramdisk -C gzip
+    writes and WD's stock mtd2 header holds: os linux(5) arch arm(2) type ramdisk(3) comp gzip(1)."""
+    p = rd(a.payload)
+    if p[:2] != b'\x1f\x8b':
+        sys.exit("REFUSED: payload is not gzip data")
+    load = int(a.load, 0)
+    name = a.name.encode()[:31]
+    h = struct.pack('>7I4B32s', UMAGIC, 0, int(a.time, 0), len(p), load, load, zlib.crc32(p) & 0xffffffff,
+                    5, 2, 3, 1, name)
+    h = h[:4] + struct.pack('>I', zlib.crc32(h) & 0xffffffff) + h[8:]
+    out = h + p
+    if a.max and len(out) > a.max:
+        sys.exit(f"REFUSED: uImage is {len(out)} bytes, over --max {a.max}")
+    u = parse_uimage(out)
+    assert u and u['hcrc_ok'] and u['dcrc_ok'] and u['type'] == 3 and u['comp'] == 1
+    wr(a.out, out)
+    print(f"ramdisk uImage: name {u['name']!r} time {u['time']:#x} load {u['load']:#x} ep {u['ep']:#x} data {u['size']} bytes, "
+          f"header + data CRCs OK; md5 {hashlib.md5(out).hexdigest()}")
 
 
 def tag(t, body=b''):
@@ -247,9 +274,18 @@ def c_atags_clone(a):
     tok = a.cmdline_add
     if not tok or ' ' in tok or any(ord(c) < 33 or ord(c) > 126 for c in tok):
         sys.exit("REFUSED: the token must be printable ASCII without spaces")
+    ird = None
+    if a.initrd:                                                     # Nov 26 2026: a second change, INITRD2's start+size only
+        ird = tuple(int(x, 0) for x in a.initrd.split(','))
+        if len(ird) != 2 or sum(1 for t in tags if t[1] == 0x54420005) != 1:
+            sys.exit("REFUSED: --initrd needs ADDR,SIZE and a capture with exactly one INITRD2 tag")
     out = b''
     for o, tag, size, body in tags:
-        if tag == 0x54410009:
+        if tag == 0x54420005 and ird:
+            old = struct.unpack('<II', body[:8])
+            out += struct.pack('<II', size, tag) + struct.pack('<II', *ird) + body[8:]
+            print(f"INITRD2: start {old[0]:#x} size {old[1]:#x} -> start {ird[0]:#x} size {ird[1]:#x}")
+        elif tag == 0x54410009:
             old = body.split(b'\0')[0]
             new = old + b' ' + tok.encode()
             words = (8 + len(new) + 1 + 4) >> 2                      # U-Boot 1.1.4 setup_commandline_tag
@@ -327,7 +363,10 @@ def main():
     s = sp.add_parser('atags-parse'); s.add_argument('file'); s.add_argument('--at'); s.add_argument('--expect-token')
     s.add_argument('--expect-initrd'); s.add_argument('--max-end'); s.set_defaults(f=c_atags_parse)
     s = sp.add_parser('atags-clone'); s.add_argument('capture'); s.add_argument('out'); s.add_argument('--cmdline-add', required=True)
-    s.add_argument('--at'); s.set_defaults(f=c_atags_clone)
+    s.add_argument('--at'); s.add_argument('--initrd'); s.set_defaults(f=c_atags_clone)
+    s = sp.add_parser('rduimage'); s.add_argument('payload'); s.add_argument('out'); s.add_argument('--name', default='Ramdisk')
+    s.add_argument('--load', default='0x00e00000'); s.add_argument('--time', required=True)
+    s.add_argument('--max', type=int, default=0); s.set_defaults(f=c_rduimage)
     s = sp.add_parser('marker'); s.add_argument('out'); s.add_argument('--run', required=True); s.add_argument('--pos', type=int, required=True)
     s.add_argument('--total', type=int, required=True); s.add_argument('--dest', required=True); s.set_defaults(f=c_marker)
     s = sp.add_parser('layout'); s.add_argument('segs'); s.add_argument('--root'); s.set_defaults(f=c_layout)
