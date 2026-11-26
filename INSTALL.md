@@ -1,6 +1,8 @@
 # Installing to flash: the plan, and how far it has got
 
-> **NOT DONE. NOT PROVEN. ON NO UNIT.** Nobody has installed this project to the flash of any EX4, ours included.
+> **THE PERMANENT INSTALL IS NOT DONE.** On ONE unit (ours, Nov 26 2026) steps 2-4 have run: `mtd2` holds the stage-2
+> ramdisk and the box boots through real U-Boot into WD's system as before. The modern system in `mtd3` (steps 5-6) is not
+> built and not written on any unit.
 > This page is the plan for a permanent install and an honest account of which steps have run. Read it as a map
 > of the risks, not as instructions to follow. Everything else in this repository runs from RAM and goes away
 > with a power cycle; **the flash write described here does not.**
@@ -50,7 +52,8 @@ pair with the new ramdisk; (4) the image is next to the script, matches its `.md
 file `STAGE2-PROVEN` next to the script). `write` also needs a backup of `mtd2` that still matches the flash.
 
 What has run, on our one unit: `plan` (it passed walls 1-5 with the current image, and wall 6 after the RAM proof);
-`write` once, only to its `ARMED=0` refusal. `backup`, `restore` and an armed `write` have never run anywhere.
+`write` once to its `ARMED=0` refusal; then on Nov 26 2026 `backup`, and an armed `write` from a copy (it wrote `mtd2`, read
+back equal). `restore` has never run anywhere.
 
 ## The steps, and where each one stands
 
@@ -59,9 +62,9 @@ What has run, on our one unit: `plan` (it passed walls 1-5 with the current imag
 | 0 | **Two off-box copies of the whole stock flash** (every `mtd`, plain `dd` and `nanddump` with the out-of-band bytes), md5-checked at the far end | done on our unit (we hold two copies). Yours: your job, before anything else |
 | 0 | Build the stage-2 ramdisk from your own stock ramdisk ([stage2/README.md](stage2/README.md)) | done on our unit |
 | 1 | **Prove the stage-2 ramdisk from RAM**: WD's kernel boots it through `ex4boot`, `stage2.sh` takes the "continue stock" branch, WD comes up normally. No flash write | **PROVEN on our unit, for our image** (Nov 26 2026). The tools that did it are not published yet, so you cannot repeat this step with this repository today |
-| 2 | Back up `mtd2` on the box (`ex4-install.sh backup`), copy it off, check it equals your step-0 dump | not run |
-| 3 | **THE FLASH WRITE.** Set `ARMED=1` (a one-line edit), `ex4-install.sh write DIR`. Daylight, someone at the plug, ideally a UPS | **not run, on any unit** |
-| 4 | Reboot and prove the hook through real U-Boot: WD must come up exactly as before | not run |
+| 2 | Back up `mtd2` on the box (`ex4-install.sh backup`), copy it off, check it equals your step-0 dump | done on our unit (Nov 26 2026) |
+| 3 | **THE FLASH WRITE.** Set `ARMED=1` (a one-line edit), `ex4-install.sh write DIR`. Daylight, someone at the plug, ideally a UPS | **done on ONE unit (ours, Nov 26 2026)**: erase + write + read-back took 6 s; read-back, full-partition md5, ECC and the other partitions all checked by hand before any reboot |
+| 4 | Reboot and prove the hook through real U-Boot: WD must come up exactly as before | **PROVEN on our unit** (Nov 26 2026): U-Boot loaded the ramdisk from `mtd2`, `stage2.sh` logged `mtd3 is not UBI` once, WD came up with its RAID, data volume and daemons as before |
 | 5 | Build the persistent modern system for `mtd3` (UBI with the `ex4boot` volume: kernel, ATAGs, initrd, the boot counter, and the root) | **not built**. It needs an OpenWrt source build with an EX4 device entry |
 | 6 | Switch `mtd3` to UBI (a second flash write) | not run; see the risk below before it ever is |
 
@@ -84,9 +87,9 @@ What has run, on our one unit: `plan` (it passed walls 1-5 with the current imag
 
 ## Known risks, said plainly
 
-- **U-Boot reading our ramdisk from flash has never been seen.** The RAM proof passes the ramdisk's start and size
-  to WD's kernel the way U-Boot would; U-Boot's own parse of our header (CRCs checked by our own tools only) is
-  still unproven. That is exactly what step 4 tests, after the write.
+- **U-Boot reading our ramdisk from flash: seen on ONE unit.** Step 4 on ours (Nov 26 2026): U-Boot read and booted
+  our header from `mtd2`. One unit is not every unit: a different U-Boot build or NAND could still differ, and the
+  dark-box case below still applies to yours. We did it without serial; we do not recommend that.
 - **WD's boot can erase its own kernel.** WD's stock ramdisk runs a check (`chk_image`) on every boot. Read from its
   code: when `mtd3` does not hold a valid WD image (size, checksum record or checksum wrong), it runs
   `flash_eraseall /dev/mtd1` and reboots, unless a marker file exists in the config volume. Steps 1-4 are not
