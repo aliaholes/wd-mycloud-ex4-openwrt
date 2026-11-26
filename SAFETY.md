@@ -18,8 +18,8 @@ The stock system is never modified by the trial: nothing the trial runs writes t
 given to the new kernel marks all seven flash partitions `read-only` (the build checks the compiled tree for
 that, and so does `tests/dtb_check.py`). The one file in this repository that can write flash is
 `box/ex4-install.sh`, the planned installer for a later step: it ships with `ARMED=0` (its `write` and `restore`
-refuse before any flash command), it has never written flash on any unit, and the trial never calls it. The
-flash install is not done and not proven: [INSTALL.md](INSTALL.md) says why, and how a box can be lost to it.
+refuse before any flash command), it has written flash on ONE unit (ours, Nov 26 2026, the `mtd2` step), and the trial
+never calls it. The full flash install is not done: [INSTALL.md](INSTALL.md) says why, and how a box can be lost to it.
 
 ## The one disk write
 
