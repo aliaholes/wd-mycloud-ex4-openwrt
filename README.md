@@ -18,9 +18,11 @@
 > behave differently. `ex4-trial.sh` checks for the firmware above and **refuses to run on anything else**. Do
 > not edit that check away: the loader jumps to addresses that exist only in this exact stock kernel.
 >
-> **It runs from RAM only, and it is still at your own risk.** Nothing here writes the NAND flash: no step, no
-> script and no program in this repository contains a flash write, and the device tree the new kernel gets marks
-> every flash partition read-only. A power cycle brings the stock WD system back. But a kernel module is loaded
+> **It runs from RAM only, and it is still at your own risk.** The trial never writes the NAND flash: no step of
+> it and no program it runs contains a flash write, and the device tree the new kernel gets marks every flash
+> partition read-only. (The one flash-writing file in this repository is `box/ex4-install.sh`, the planned
+> installer for a later step. It ships disarmed, `ARMED=0`, has never written flash on any unit, and the trial
+> never calls it: see [INSTALL.md](INSTALL.md).) A power cycle brings the stock WD system back. But a kernel module is loaded
 > into WD's kernel, your data volumes are remounted read-only and the machine is taken over while it runs. An
 > unclean return can make the RAID resync or the stock system check its file system for minutes. The trial also
 > **writes one 2 MiB log into an unused disk partition** (see [SAFETY.md](SAFETY.md), "The one disk write").
@@ -56,7 +58,9 @@ time and you are back on stock too.
 
 **It is a trial boot, not an installation.** Nothing persists. That is the point of this first release: it lets
 EX4 owners (and anyone porting OpenWrt or Debian to this board) run and debug a modern kernel on the real
-hardware with a way back that needs no tools. A permanent install is the next step and is not in here.
+hardware with a way back that needs no tools. **A permanent install is NOT done and NOT proven on any unit.**
+[INSTALL.md](INSTALL.md) is the plan and where it stands; its first piece, the stage-2 ramdisk
+([stage2/](stage2/README.md)), has been booted from RAM on the test unit (Nov 26 2026), never written to flash.
 
 ## What works (seen on the test unit)
 
@@ -284,7 +288,8 @@ The full table, the frames we captured but never send, the event codes, and how 
 | `loader/` | `ex4boot`: the kernel module and its relocation stub, plus two emulator tests of the stub |
 | `dts/` | the device tree for the EX4 (`wd,mycloud-ex4`), written against Linux 6.12's kirkwood includes |
 | `userland/` | `ex4fan` (fan, clock, panel), `ex4log` (the black-box disk log), `ex4peek` (read-only: finds the trial kernel's log and our RAM markers in memory), `ex4phy` (read-only: asks the Ethernet PHYs for their id and register page) |
-| `box/` | `ex4-trial.sh`, the one script that runs on the NAS |
+| `box/` | `ex4-trial.sh`, the one script the trial runs on the NAS; `ex4-install.sh`, the planned flash installer (ships `ARMED=0`, never used to write flash: [INSTALL.md](INSTALL.md)) |
+| `stage2/` | builds the stage-2 ramdisk for a future install from your own stock ramdisk; proven from RAM on one unit, never flashed ([stage2/README.md](stage2/README.md)) |
 | `build/` | `fetch.sh`, `build.sh`, and the Python tools they use |
 | `host/` | `ex4-watch.sh`, an optional LAN-side witness |
 | `tests/` | everything that can be tested without the NAS: several hundred checks, many of them in emulators |
