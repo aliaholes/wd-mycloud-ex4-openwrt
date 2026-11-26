@@ -2,7 +2,7 @@
 
 This folder builds the **stage-2 ramdisk**: WD's own stock ramdisk (the one in flash partition `mtd2`) with one
 folder (`/ex4`) and **one line** added. It is the piece a permanent install would put into `mtd2`. The flash
-install itself is **not done and not proven on any unit**: see [../INSTALL.md](../INSTALL.md) before you go
+install itself is **not done** (on one unit the `mtd2` step is done and boots): see [../INSTALL.md](../INSTALL.md) before you go
 further than building.
 
 ## Status, plainly
@@ -13,8 +13,8 @@ further than building.
 | **Booting it from RAM** (WD's own kernel + this ramdisk, handed over by `ex4boot`, no flash write) | **PROVEN** on ONE unit, Nov 26 2026, for ONE image (md5 `d2c6d5e629e105feab45725ffa3611bf`; see below) |
 | The branch that ran | "mtd3 is not UBI: continue the stock boot". The box came back as stock by itself in about 2 minutes, RAID clean, WD's daemons all up |
 | The UBI branch (boot a modern kernel from flash) and the rescue shell | **Never run.** No unit has a UBI `mtd3` |
-| Written to flash (`mtd2`) | **Never, on any unit.** `../box/ex4-install.sh` ships with `ARMED=0` |
-| Read by U-Boot from flash | **Never.** The RAM proof hands the ramdisk over the way U-Boot would (the ATAG with its start and size), but U-Boot parsing our header from `mtd2` is still unseen |
+| Written to flash (`mtd2`) | **Once, on ONE unit (ours, Nov 26 2026).** `../box/ex4-install.sh` still ships with `ARMED=0`: the write ran from an armed COPY |
+| Read by U-Boot from flash | **Once, on ONE unit** (Nov 26 2026): our image d2c6d5e6 written to `mtd2`, U-Boot loaded it, `stage2.sh` continued the stock boot, WD came up as before |
 
 What the RAM proof saw on the test unit (WD firmware 2.12.127): `/proc/cmdline` carried the run id we passed
 (the jump worked); `dmesg | grep ex4-stage2` gave exactly one line, `ex4-stage2: mtd3 is not UBI (stock firmware
@@ -96,7 +96,7 @@ share the image you build: it contains WD's ramdisk.**
   that are not in this repository yet. Until they are, there is no published way to do the one step that
   `../box/ex4-install.sh` requires before it will write (its wall 6: the image's md5 in a file `STAGE2-PROVEN`).
   Do not write that file by hand.
-- **Install anything.** Read [../INSTALL.md](../INSTALL.md): the flash write is not done and not proven on any unit.
+- **Install anything.** Read [../INSTALL.md](../INSTALL.md): the flash write has been done on ONE unit only, without serial, and the full install is not done.
 
 ## Files
 
