@@ -1,0 +1,11 @@
+#!/bin/sh
+# minimal udhcpc script for the EX4 rescue shell
+BB=/ex4/busybox
+case "$1" in
+deconfig) $BB ifconfig "$interface" 0.0.0.0 ;;
+bound|renew)
+	$BB ifconfig "$interface" "$ip" netmask "${subnet:-255.255.255.0}"
+	[ -n "$router" ] && $BB route add default gw ${router%% *} dev "$interface" 2>/dev/null
+	echo "ex4-stage2: rescue address $ip on $interface" > /dev/console 2>/dev/null ;;
+esac
+exit 0
