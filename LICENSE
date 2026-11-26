@@ -2,20 +2,23 @@ Licences in this repository, per directory
 ==========================================
 
 Everything that is code is GPL-2.0-or-later (full text: COPYING). Every source file carries
-"SPDX-License-Identifier: GPL-2.0-or-later".
+"SPDX-License-Identifier: GPL-2.0-or-later" (two exceptions, both under stage2/ below).
 
   loader/     GPL-2.0-or-later   a Linux kernel module (it is built against, and loaded into, WD's GPL-2.0
                                  kernel 3.2.40) and its emulator tests
   dts/        GPL-2.0-or-later   a device tree that includes Linux's own kirkwood .dtsi files
   userland/   GPL-2.0-or-later   ex4fan, ex4log, ex4peek, ex4phy: our own programs. GPL rather than MIT so that the whole
                                  tree has one licence and pieces can move into OpenWrt or the kernel tree
-  box/        GPL-2.0-or-later   the script that runs on the NAS
+  box/        GPL-2.0-or-later   the scripts that run on the NAS
+  stage2/     GPL-2.0-or-later   builds the stage-2 ramdisk from the user's own stock ramdisk. stage2.sh and
+                                 udhcpc.script carry no SPDX line on purpose: they are kept byte-identical to the
+                                 copies inside the image that was booted from RAM; this line is their licence
   build/      GPL-2.0-or-later   the builders (mkoverlay.py patches two files of OpenWrt, which is GPL-2.0, at
                                  build time and carries shell hooks written against OpenWrt's function library)
   host/       GPL-2.0-or-later
   tests/      GPL-2.0-or-later   tests/captures/*.json are records of observed behaviour (bytes on a serial line);
                                  use them freely
-  docs/, README.md, SAFETY.md    CC0 1.0 (public domain dedication,
+  docs/, README.md, SAFETY.md, INSTALL.md, stage2/README.md    CC0 1.0 (public domain dedication,
                                  https://creativecommons.org/publicdomain/zero/1.0/): copy the protocol tables,
                                  pin maps and notes into any wiki, port or driver without asking
 
@@ -23,6 +26,8 @@ What is NOT in this repository, and why
 ---------------------------------------
 No file of Western Digital's firmware (no binary, library, firmware image, root file system, U-Boot dump), and no
 OpenWrt or Linux binary. build/fetch.sh downloads what is needed from the publishers themselves and checks hashes.
+No stage-2 image either: it contains WD's ramdisk, so stage2/mkstage2.sh builds it from the user's own stock ramdisk,
+read from the user's own unit. Do not publish the image you build.
 The protocol descriptions come from observing WD's programs; the code here is ours.
 
 "WD", "Western Digital" and "My Cloud" are trademarks of Western Digital. This project is not affiliated with,
