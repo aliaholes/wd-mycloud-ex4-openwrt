@@ -14,7 +14,7 @@
 #   [EX4_* as bundle] sh build/v9/build-v9.sh variant --run RUNBASE --initrd-size N --out DIR        (v9.7: plan only)
 #   sh build/v9/build-v9.sh kernel-kind --config KERNEL.config      (v9.8: prints which kernel a .config is, or refuses)
 #
-# What v9.8 adds (Nov 18 2026; Kurt 12:45 "Go for whatever makes it awesome", answering the morning report's three calls). The
+# What v9.8 adds (Nov 18 2026; decided that day: go ahead with all three open choices). The
 # defaults build exactly what v9.7 built (no flag = the same bundle files, the same run id form):
 #   two kernel twins in the ONE variant scheme (each its own token; build-v9 still refuses two twins at once):
 #     ud        = uaccess + diet + nfsdtrack (build/v9/kernel-config.ud.fragment, the union of the three; run 17: uaccess moved
@@ -27,8 +27,8 @@
 #            on the finished bundle (VARIANT == the variant, RUNID suffix == its tokens, the overlay's .ko set == KMODS.txt,
 #            a kernel twin's VARIANT carries kernel-config-md5=). A refusal renames the bundle to bundle-v9.REFUSED.
 #
-# What v9.7 adds (Nov 17-18 2026, FABLE-OPT F3 + F6 + trial 3 "the build night"; Kurt 23:55: "Prolly not jumbo frames. I
-# only need NFS."). The defaults build exactly what v9.4 built (no flag = the same bundle files, the same run id form):
+# What v9.7 adds (Nov 17-18 2026, the perf review's F3 + F6 + trial 3; decided Nov 17: no jumbo frames, the box needs
+# only NFS). The defaults build exactly what v9.4 built (no flag = the same bundle files, the same run id form):
 #   twin-image (prof-image generalised; prof-image = twin-image --twin prof, unchanged): a KERNEL TWIN = a cp -a of the
 #            frozen v9 image tree + build/v9/kernel-config.<twin>.fragment, the kernel and every kernel module rebuilt,
 #            offline, the same checks as prof-image + (all twins) THE SECURITY KEEP LIST and THE NAS KEEP LIST read back
@@ -50,8 +50,8 @@
 #   variant (new stage, builds nothing): the run id, the VARIANT file and atags.bin a bundle with these EX4_* would get,
 #            from the SAME functions the bundle stage calls (tests/build/cmdline-arm-test.sh drives it)
 #
-# What v9.4 adds (Nov 17 2026, PERF-DESIGN-v2 §3 R1 arm X2 and R2 "v10b-prof"; Kurt 20:19: "The goal is to beat stock at
-# everything"). The defaults build exactly what v9.3 built (no flag = the same bundle files, the same run id form):
+# What v9.4 adds (Nov 17 2026, the perf design's §3 R1 arm X2 and R2 "v10b-prof"; the goal, Nov 17: beat stock at
+# everything). The defaults build exactly what v9.3 built (no flag = the same bundle files, the same run id form):
 #   bundle + EX4_XOR=off (default on): build/v9/xor-off.dtsi is appended to the preprocessed trial DTS, so BOTH orion-xor
 #            nodes (xor@60800 = dma0, xor@60900 = dma1) are status "disabled" in kernel.bin's DTB; the kernel is the same.
 #            The stage also builds the default DTB, decompiles both and REFUSES unless they differ in exactly those two
@@ -70,8 +70,8 @@
 #            proxy points at a closed port and `make download` must pass first (every source already in dl/); no
 #            namespace wall (that needs root), so the receipt says RESULT OFFLINE, not WALLED.
 #
-# What v9 changes against build/v8/build-v8.sh (Kurt, Nov 17 2026 15:13: "Secure, fast, able to be updated to keep
-# secure"; the v8 update / bench reviews):
+# What v9 changes against build/v8/build-v8.sh (the goal, Nov 17 2026: secure, fast, able to be updated to keep
+# secure; the v8 update / bench reviews):
 #   image  + THE UPDATE PATH (update/FILES): /usr/sbin/ex4-update, our release key as /etc/ex4-update/keys/<key number>,
 #            and /etc/ex4-release (mkrelease.py ident: board, RELVER, RELSERIAL, RELCHANNEL). RELVER + RELSERIAL are
 #            required: an image that cannot say who it is cannot judge a downgrade.
@@ -89,7 +89,7 @@
 #          + bundle-v9, laid out exactly like bundle-v8
 # Below: v8's own header (the stages are otherwise unchanged).
 #
-# What v8 changes against build/v7/build-v7.sh (each from Kurt's 15:13 answer or a v7 review, Nov 17 2026):
+# What v8 changes against build/v7/build-v7.sh (each from a decision of Nov 17 2026 or a v7 review):
 #   image  + px5g-mbedtls (the web interface's certificate maker; v7's image had none, so HTTPS could not start)
 #          + smartd out of rc.d, and an /etc/smartd.conf that watches nothing (review nit: a package update must not be
 #            able to turn its sample config into DEVICESCAN); smartctl stays for the interface's reads
@@ -98,9 +98,9 @@
 #            writes the receipt (no interface but lo, no name lookup, no direct route, the proxy allows OpenWrt and
 #            refuses the rest) and the stage REFUSES to start if any line fails. Without --netwall the stage runs as
 #            v7 did (the proxy in the environment only) and its receipt says so.
-#          = dnsmasq, firewall4, nftables, odhcpd, uboot-envtools, block-mount stay out (Kurt 15:13: leave them out),
+#          = dnsmasq, firewall4, nftables, odhcpd, uboot-envtools, block-mount stay out (decided Nov 17: leave them out),
 #            and the stage refuses a resolved .config or a rootfs that carries any of them
-#   bundle + the web interface (webui/; Kurt 15:13: it rides in this trial: HTTPS 443 on the LAN, claimed by a code
+#   bundle + the web interface (webui/; decided Nov 17: it rides in this trial: HTTPS 443 on the LAN, claimed by a code
 #            read over ssh, no default password); --no-webui leaves it out
 #          + THE OVERLAY GATE (build/v8/overlay-gate.py): the bundle stage REFUSES an overlay.cpio without the security
 #            fix (root '*', key-only ssh, exactly the given key, the web door in the state its flag asks for), so a
@@ -111,7 +111,7 @@
 #
 # image  : OpenWrt 25.12.6 (tag v25.12.6 = r33311-981c978eff) built from source in DIR/openwrt: kirkwood/generic,
 #          the kernel config fragment (the SoC's XOR/copy engines: DMADEVICES + MV_XOR + ASYNC_TX_DMA; md + raid1 +
-#          raid456 BUILT IN with autodetect OFF; ext4 quotas), the package list of PLAN.md's NAMED LIST, an initramfs
+#          raid456 BUILT IN with autodetect OFF; ext4 quotas), the package list of THE NAMED LIST (diffconfig), an initramfs
 #          kernel. Every source comes from OpenWrt's own servers: git.openwrt.org for the tree and the packages feed
 #          (both pinned to the release's commits, checked), and OpenWrt's source mirror for every tarball, through
 #          build/v7/egress-allow.py, a local proxy that refuses every other host (its log is the receipt). OpenWrt's
@@ -165,7 +165,7 @@ OWRT_COMMIT=64900e756efa667774214f9c6b17c113222e01f7       # "OpenWrt v25.12.6: 
 OWRT_REV=r33311-981c978eff                                  # version.buildinfo of the official release
 FEED_PACKAGES="src-git packages https://git.openwrt.org/feed/packages.git^093d551675b1119a06ef224d419905e8d6b2af1a"
 FEED_PKGS="samba4-server ksmbd-server kmod-fs-ksmbd nfs-kernel-server wsdd2 avahi-nodbus-daemon msmtp smartmontools smartd rsync proto-bonding"
-# packages the image must NOT carry (Kurt, Nov 17 2026 15:13: dnsmasq, the firewall, uboot-envtools and block-mount stay out)
+# packages the image must NOT carry (decided Nov 17 2026: dnsmasq, the firewall, uboot-envtools and block-mount stay out)
 NOTPKGS="kmod-md-mod kmod-md-raid456 dnsmasq dnsmasq-full firewall4 firewall nftables odhcpd odhcpd-ipv6only uboot-envtools block-mount luci luci-base"
 KVER=6.12.112
 PROXY_PORT=${PROXY_PORT:-18443}
@@ -285,7 +285,7 @@ kernel_kind() {
 	*) die "this image's kernel is no kernel this script knows (FUNCTION_TRACER, FUNCTION_GRAPH_TRACER, UACCESS_WITH_MEMCPY, JUMP_LABEL, no MEMCG, NFSD_LEGACY_CLIENT_TRACKING = $m in $kc)";;
 	esac
 }
-# THE SECURITY KEEP LIST (FABLE-LANE-kernel.md §4.1: no hardening option is dropped to win cycles) and THE NAS KEEP LIST
+# THE SECURITY KEEP LIST (no hardening option is dropped to win cycles) and THE NAS KEEP LIST
 # (the md / raid5 / XOR engine stack; the NFS server: nfsd, NFSv4 (4.2 rides in NFSD_V4 on 6.12), lockd, sunrpc, exportfs).
 # Every twin's built kernel must still say each line (y for the security list; y or m for the module half of the NAS list).
 SECKEEP="CONFIG_STACKPROTECTOR=y CONFIG_HARDENED_USERCOPY=y CONFIG_FORTIFY_SOURCE=y CONFIG_SLAB_FREELIST_HARDENED=y CONFIG_SLAB_FREELIST_RANDOM=y
@@ -395,7 +395,7 @@ fi
 
 if [ "$STAGE" = prof-image ] || [ "$STAGE" = twin-image ]; then
 	# THE KERNEL TWINS (v9.4's PROFILE TWIN generalised in v9.7): the v9 image tree + build/v9/kernel-config.<twin>.fragment.
-	# prof / prof2 = profile twins (NEVER shipped, bench only); uaccess / diet = bench twins (FABLE-OPT F3 / F6), never a
+	# prof / prof2 = profile twins (NEVER shipped, bench only); uaccess / diet = bench twins (the perf review's F3 / F6), never a
 	# release until their arms pass. prof-image is twin-image --twin prof.
 	if [ "$STAGE" = prof-image ]; then
 		[ -z "$TWARG" ] || [ "$TWARG" = prof ] || die "prof-image is twin-image --twin prof (got --twin $TWARG)"
@@ -575,7 +575,7 @@ PY
 		echo "$SIZES"
 		echo "size estimate: $SZE"
 		echo "keep lists: $(grep -c '^keep ' "$WORK/keep-lists.txt") kernel .config lines read back (security + NAS), NAS modules: $(grep -E '^(module|built-in) ' "$WORK/keep-lists.txt" | tr '\n' ' ')"
-		if [ "$PROFT" = 1 ]; then echo "PROFILE TWIN: never ship"; else echo "bench twin: never a release until its arm passes (FABLE-OPT trial 3)"; fi
+		if [ "$PROFT" = 1 ]; then echo "PROFILE TWIN: never ship"; else echo "bench twin: never a release until its arm passes (trial 3)"; fi
 	} > "$WORK/TWIN.txt"
 	if [ "$PROFT" = 1 ]; then
 		{
@@ -845,7 +845,7 @@ PY
 		[ "$PROFILE" = 1 ] && echo "PROFILE TWIN: never ship (bench only; kernel .config has CONFIG_FUNCTION_TRACER=y; $(sed -n 4p "$PTW"))"
 		[ "$TWIN" = prof2 ] && echo "TWIN=prof2: + FUNCTION_GRAPH_TRACER (the profiler records time per function); $(sed -n 3p "$TWF")"
 		case "$TWIN" in uaccess|diet|ud|nfsdtrack) echo "TWIN=$TWIN: bench kernel twin, never a release until its arm passes; $(sed -n 3p "$TWF")";; esac
-		[ "$XOR" = off ] && echo "XOR=off (PERF-DESIGN-v2 R1 arm X2): both orion-xor nodes disabled in ex4-trial.dtb; $(tail -1 "$BW/dts/xor-check.txt" 2>/dev/null)"
+		[ "$XOR" = off ] && echo "XOR=off (R1 arm X2): both orion-xor nodes disabled in ex4-trial.dtb; $(tail -1 "$BW/dts/xor-check.txt" 2>/dev/null)"
 		echo "loaded into stock's RAM by the loader: $(py -c 'import os,sys; b=sys.argv[1]; print(sum(os.path.getsize(os.path.join(b,l.split()[0])) for l in open(os.path.join(b,"SEGS"))))' "$B") bytes in $(grep -o 'loader chunks: [0-9]*' "$BW/layout.log" | tail -1 | cut -d' ' -f3) chunks of 32 KiB"
 	} > "$B/PROVENANCE"
 	( cd "$B" && md5sum ex4boot-l2off.ko ex4peek ex4log ex4fan KMODS.txt kernel.bin overlay.cpio atags.bin markA.bin markC.bin markH.bin SEGS EXPECT RUNID CFG LOGCFG PROVENANCE ex4-trial.sh $EXTRA > MD5SUMS )
