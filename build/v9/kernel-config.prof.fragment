@@ -1,4 +1,4 @@
-# build/v9/kernel-config.prof.fragment : the PROFILE TWIN's kernel (PERF-DESIGN-v2 R2 "v10b-prof"; NEVER shipped, bench only).
+# build/v9/kernel-config.prof.fragment : the PROFILE TWIN's kernel (the perf design's R2 "v10b-prof"; NEVER shipped, bench only).
 # Read by `build-v9.sh prof-image`. Two kinds of line (no KCFG line is needed today):
 #   OWRT CONFIG_KERNEL_X=y   goes into OpenWrt's top .config: OpenWrt's kernel-defaults.mk turns every CONFIG_KERNEL_X
 #                            into the kernel's CONFIG_X and OVERRIDES the target config with it (so FTRACE / KALLSYMS
