@@ -1,7 +1,9 @@
-# Run history on the test unit (Nov 16-17 2026)
+# Run history on the test unit (Nov 16-26 2026)
 
 All on one WD My Cloud EX4, firmware 2.12.127, four 4 TB disks in a RAID array emptied of data. Times are local.
-No run wrote flash. "Back" means WD's stock firmware answered ssh again.
+No RAM trial wrote flash (the trial contains no flash write: README). The one flash write so far is the stage-2 step
+of Nov 26 2026, the last row below ([INSTALL.md](../INSTALL.md), steps 2-4). "Back" means WD's stock firmware
+answered ssh again.
 
 | Run | Payload | Loader | Watchdog | Result | How it came back |
 |---|---|---|---|---|---|
@@ -14,8 +16,15 @@ No run wrote flash. "Back" means WD's stock firmware answered ssh again.
 | 6 | run 5 + `ex4fan` | L2-off | yes | **fan managed**: first frame FAN HIGH acknowledged, 2040 rpm; MEDIUM after 60 s, LOW 30 s later, about 1020 rpm for 20 min; 13 of 13 commands acknowledged; drives 38-41 °C | its own reboot 1332 s after launch |
 | 7 | run 6 + xhci modules, the MAC hook, clock read, `DeviceReady`, a second auto-return | L2-off | yes | launched 02:56:42 on Nov 17, ssh 63 s later. **USB 3**: `xhci_hcd` bound to the Etron EJ168, SuperSpeed root hub up. **Clock**: the micro answered `2026-11-17 10:57:03 UTC`, the unset system clock was set from it. **`DeviceReady`** acknowledged at the first try. Fan as in run 6: 87 of 87 commands acknowledged, about 1050 rpm at LOW, drives 38-40 °C. **MAC addresses: not read** ("nothing readable in flash"): the port with the cable got a derived address, the bridge kept the unit's first one and the same DHCP lease. **Link flap measured**: 2329 carrier changes in 1237 s | its own reboot; stock answered 1424 s after launch |
 | 8 | run 7 + WD's flash layout in the device tree + both PHYs on the generic PHY driver; **the first bundle built by `build/build.sh`** | L2-off | yes | launched 03:48:27 on Nov 17, ssh 62 s later. **Link steady**: eth1 carrier changes stayed at 1 (the first link-up) from 46 s to 1258 s of uptime, 0 `link down` lines (run 7: 2329 changes). **MACs**: eth0 and eth1 got WD's own two consecutive addresses, read from `rescue firmware` at 0x0dd00000. Both PHY chips answer id `0141.0dd1` on page 0. Fan 1011-2010 rpm, 2 of 2 fan commands acknowledged; USB 3 bound; clock set from the micro; `DeviceReady` acknowledged | its own reboot after 1347 s |
+| 10 | v7's own kernel (OpenWrt 25.12.6 built from source, Linux 6.12.112) | not recorded here | not recorded here | Nov 17 2026: **both XOR engines probed**; idle CPU 5.0% (the official kernel's run: 13.5%); network receive 54.9 MiB/s; LAN TCP port 22 only. Writing to the array was not measured (README, "v7, v8 and v9") | not recorded here |
+| stage 2, RAM | WD's own kernel + the stage-2 ramdisk (md5 `d2c6d5e629e105feab45725ffa3611bf`), handed over by `ex4boot`; no flash write | `ex4boot` | not recorded here | Nov 26 2026: `/proc/cmdline` carried the run id; `stage2.sh` logged exactly one line, `ex4-stage2: mtd3 is not UBI (stock firmware image): continuing the stock boot`; WD's own boot ran on (its file system check after an unclean stop, RAID `[UUUU]`, the same daemons as before); the u-boot, kernel, ramdisk and identity partitions had the same md5 before and after ([stage2/README.md](../stage2/README.md)) | by itself, as stock, in about 2 minutes |
+| stage 2, flash | `mtd2` written with that stage-2 ramdisk: `ex4-install.sh backup`, then an armed `write` from a copy of the script (erase + write + read-back in 6 s, read back equal; read-back, full-partition md5, ECC and the other partitions checked by hand before any reboot) | none: a reboot through WD's own U-Boot | not recorded here | Nov 26 2026: U-Boot loaded the ramdisk from `mtd2`, `stage2.sh` logged `mtd3 is not UBI` once, WD came up with its RAID, data volume and daemons as before ([INSTALL.md](../INSTALL.md), steps 3-4) | a normal stock boot |
 
-After every run: RAID arrays `[UUUU]`, no resync. After run 4a (an unexpected reset) stock ran a file-system
+Other runs are not in this table: runs 11 and 14 to 18 are named in [RWBENCH.md](RWBENCH.md) and
+[build/v9/README.md](../build/v9/README.md) (the read-write bench and its kernel twins); this file has no record of
+runs 9, 12 and 13.
+
+After runs 1 to 8: RAID arrays `[UUUU]`, no resync. After run 4a (an unexpected reset) stock ran a file-system
 check on the data volume for about four minutes before mounting it.
 
 What each failure taught:
