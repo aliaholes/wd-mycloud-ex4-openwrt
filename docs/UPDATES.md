@@ -121,7 +121,7 @@ create trust.
 
 **It never runs on its own.** No cron, no timer, no hotplug. It runs only when someone types it, or (once the
 web patch lands) when the System page asks. **It never installs.** A staged release stays in RAM and is gone at the
-next boot. Writing the flash is a separate phase that has not been built, and it is Kurt's call.
+next boot. Writing the flash is a separate phase that has not been built, and it is the owner's call.
 
 **What the web interface shows** (System → Updates, in the bundle since v9): what runs (version, serial, channel),
 how many signing keys the box holds, when the last check ran and against which address, what it found (an expired
@@ -169,7 +169,7 @@ kernel tag when it has open CVEs. The same set the next morning prints `DEDUPE  
 <date>: no new card` and exits 0; a set that gains or loses any member prints `NEW  new finding(s): ...; gone since
 the last report: ...` and exits 1 as before. A new CVE id inside a class already reported does not count as new (the
 card is already out); a new package or class does. `--seen FILE` names another ledger, `--no-dedupe` reports every
-run. The morning hook (a patch for the studio, not in this repository) needs no change: it already passes `--cache`.
+run. Our own morning run of the watch (outside this repository) needs no change: it already passes `--cache`.
 
 ## Kernel modules and packages from OpenWrt's feeds: NOT in this image (v9)
 
