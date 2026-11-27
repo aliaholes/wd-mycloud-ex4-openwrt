@@ -1,8 +1,8 @@
 # build/v9: the trial bundle that can be kept secure
 
 v9 = v8 ([build/v8/README.md](../v8/README.md): our own kernel with the SoC's XOR engines, the NAS services, the web
-interface, the panel daemon, the net-walled image build) + what makes it **able to be updated to keep secure** (Kurt,
-Nov 17 2026 15:13: "Quality work that you're proud to display. Secure, fast, able to be updated to keep secure"):
+interface, the panel daemon, the net-walled image build) + what makes it **able to be updated to keep secure** (the goals
+set Nov 17 2026: quality work worth showing; secure, fast, able to be updated to keep secure):
 
 ```
 RELVER=2026.11.17-v9 RELSERIAL=2026111702 sh build/v9/build-v9.sh image --work DIR [--netwall SOCK --egress-log LOG] [--seed-dl DIR] [--jobs N]
@@ -69,9 +69,9 @@ DELIVERABLE 28 tests 0 failing (e2e normal 65/65: no key login).
 **Not proven by any of this:** everything only the real box can show (as v8), the browser page test (no browser
 runtime on the build box; the page's script was parsed, not run), real HTTPS fetches by `ex4-update`, a real release on GitHub.
 
-## v9.4: the bench variants (Nov 17 2026, PERF-DESIGN-v2 §3 R1 arm X2 + R2 profile twin; bench only)
+## v9.4: the bench variants (Nov 17 2026, the perf design's R1 arm X2 + R2 profile twin; bench only)
 
-Kurt, 20:19: "The goal is to beat stock at everything." Two bench variants of the same bundle, so the next rungs are
+The goal (Nov 17 2026): beat stock at everything. Two bench variants of the same bundle, so the next rungs are
 measured, not guessed. **No flag = v9.3's bundle exactly** (proved below).
 
 ```
@@ -123,10 +123,10 @@ mkrelease must never be given a profile bundle (its `VARIANT` says so; mkrelease
   `--variant prof` on stock kmods and a DTB whose xor status does not match the variant.
 
 
-## v9.7: the kernel twins + one variant scheme (Nov 18 2026, FABLE-OPT F3 + F6 + trial 3 "the build night"; bench only)
+## v9.7: the kernel twins + one variant scheme (Nov 18 2026, the perf review's F3 + F6 + trial 3; bench only)
 
-Kurt, Nov 17 23:55: "Prolly not jumbo frames. I only need NFS. Nothing uses SMB if it doesn't have to." Standing: 20:19 "The
-goal is to beat stock at everything." **No flag = v9.4's bundle exactly** (proved below).
+Decided Nov 17 2026: no jumbo frames, NFS only (nothing uses SMB unless it has to). Standing: the
+goal is to beat stock at everything. **No flag = v9.4's bundle exactly** (proved below).
 
 ```
 sh build/v9/build-v9.sh twin-image --twin uaccess|diet|prof2 --from $BUILD/v9/img --work $BUILD/k-<twin> --jobs 12
@@ -202,7 +202,7 @@ below marker H (0x3000000); the bundle's size gate stays the authority.
 
 ## v9.8: the ud twin, the nfsdtrack line, THE BUNDLE GATE (Nov 18 2026; bench only)
 
-Kurt, 12:45: "Go for whatever makes it awesome" (answering the morning report's three calls: the nfsd start, a combined
+Decided Nov 18 2026: go ahead with all three open choices (the nfsd start, a combined
 uaccess + diet twin, a uaccess repeat + canary). **No flag = v9.7's bundle exactly**, plus one more gate run at the end.
 
 ```
