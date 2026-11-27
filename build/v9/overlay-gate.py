@@ -32,7 +32,7 @@ Checks (each prints PASS or FAIL; exit 0 only when every one passes):
     a PROFILE TWIN's kmods (built with FUNCTION_TRACER; the same vermagic string as stock, so vermagic cannot tell them
     apart) can never ride in a bundle that is not marked PROFILE, and a profile bundle cannot carry stock kmods.
     --kernel-dts (the decompiled DTB of the bundle's kernel.bin): both orion-xor nodes (xor@60800, xor@60900) are
-    status "okay" (stock / prof) or status "disabled" (xoroff, PERF-DESIGN-v2 R1 arm X2); that NOTHING ELSE in the DTB
+    status "okay" (stock / prof) or status "disabled" (xoroff, R1 arm X2); that NOTHING ELSE in the DTB
     differs is build-v9.sh's check (it decompiles both DTBs and diffs them).
     (v9.7) the kernel twins uaccess / diet (not instrumented) and nomemcg (kmods and DTB unchanged) are named variants; which
     kernel a twin bundle carries is build-v9.sh's check (the twin's receipt records the md5 of its kernel .config).
