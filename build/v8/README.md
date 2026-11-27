@@ -27,9 +27,9 @@ sh build/v8/build-v8.sh bundle --work DIR --pubkey KEY.pub --wd-gpl WDMyCloud_EX
 
 | Change | From |
 |---|---|
-| The web interface rides in the bundle: HTTPS on 443 of the trial's address, port 80 only redirects, no web login until the box is claimed with a six-digit code read over ssh (`ex4-claim`) | Kurt, Nov 17 2026 15:13 (the next trial carries it); the web lane's patches 1 and 1b: `build/mkoverlay.py --webui`, and 99-ex4-trial no longer pins uhttpd to loopback when `--webui` is given |
-| dnsmasq, firewall4 / nftables, odhcpd, uboot-envtools, block-mount, LuCI stay out; the image stage refuses a `.config` or a rootfs that carries any of them | Kurt 15:13 ("leave them out") |
-| `ex4fan` = the panel lane's daemon (LCD Tier A OFF by default) + `ctl send-test`: ONE LCD frame (the host name), one try, once per boot; the trial's self-test runs it once and records the ACK | Kurt 15:13 (one test frame, ACK only: nobody can see the glass) |
+| The web interface rides in the bundle: HTTPS on 443 of the trial's address, port 80 only redirects, no web login until the box is claimed with a six-digit code read over ssh (`ex4-claim`) | decided Nov 17 2026 (the next trial carries it); the web lane's patches 1 and 1b: `build/mkoverlay.py --webui`, and 99-ex4-trial no longer pins uhttpd to loopback when `--webui` is given |
+| dnsmasq, firewall4 / nftables, odhcpd, uboot-envtools, block-mount, LuCI stay out; the image stage refuses a `.config` or a rootfs that carries any of them | decided Nov 17 2026: leave them out |
+| `ex4fan` = the panel lane's daemon (LCD Tier A OFF by default) + `ctl send-test`: ONE LCD frame (the host name), one try, once per boot; the trial's self-test runs it once and records the ACK | decided Nov 17 2026 (one test frame, ACK only: nobody can see the glass) |
 | THE NET WALL: the image stage runs in a network namespace with nothing but loopback; the proxy runs outside behind a socket file; `netwall.py prove` must pass first | image review nit 4 (the v7 proxy was environment-only) |
 | THE OVERLAY GATE: the bundle stage refuses an overlay without root `*`, key-only ssh and exactly the given key, or with the web door in the wrong state | image review nit 3 |
 | smartd out of boot, `/etc/smartd.conf` names no device | image review nit 6 |
