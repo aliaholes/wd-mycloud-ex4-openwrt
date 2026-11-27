@@ -308,3 +308,14 @@ By aliaholes. Written by an AI and tested on one real unit by a human who stayed
 
 Code: GPL-2.0-or-later. Documentation: CC0. Details per folder in [LICENSE](LICENSE). It stands on the work of
 the OpenWrt kirkwood maintainers and on the kernel source WD published under the GPL.
+
+## Using a coding agent
+
+If you want a coding agent (Claude Code, Codex, Cursor, or another) to walk you through the trial, point it at this
+repository and have it read [AGENTS.md](AGENTS.md) first (Claude Code loads [CLAUDE.md](CLAUDE.md), which sends it
+there). AGENTS.md holds the walls the agent must never cross (no flash write, no `ex4-install.sh`, no edit of the
+firmware check, nothing that loads or launches on a box whose kernel line differs, nothing on the only copy of
+your data, none of your secrets anywhere), the points where it must stop and ask you, the trial step by step with the way back at each point,
+and how to read the result. [docs/LOG-READING.md](docs/LOG-READING.md) maps the lines the `verdict` prints to the
+real runs in [docs/RUNS.md](docs/RUNS.md). The agent does not replace reading [SAFETY.md](SAFETY.md) yourself, and the
+risk stays yours (see the warning at the top).
