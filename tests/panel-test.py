@@ -43,7 +43,7 @@ def ex(*a): return subprocess.run(BIN + list(a), stdout=subprocess.PIPE, stderr=
 TX = {"fa0200010000fb", "fa0200020000fb", "fa0200030000fb", "fa0200040000fb", "fa0308010000fb", "fa0308020000fb", "fa0301000000fb", "fa0100030100fb"}
 ACK = bytes.fromhex("fa3000000000fb")
 
-# ---------- an independent model of WD's rules (FRONT-PANEL.md section 2), written from the table, not from ex4fan.c ----------
+# ---------- an independent model of WD's rules, written from the frame table, not from ex4fan.c ----------
 def m_text(pre, s): b = s.encode("ascii"); return "fa" + pre + "%02x" % len(b) + b.hex() + "fb"
 def m_ip(port, a): o = [int(x) for x in a.split(".")][::-1]; return "fa0402%02x08" % port + "".join("%02x%02x" % (x & 15, x >> 4) for x in o) + "fb"
 def m_vol(v, s, p, ok_): t = ("%d%d%d%d" % (v, s, p, ok_)).encode(); return "fa040401" + "%02x" % len(t) + t.hex() + "fb"
