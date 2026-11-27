@@ -1,6 +1,6 @@
 /* ex4fan.c : the fan + front-panel daemon of the EX4 (v7; bundle-v5 = run 7; v4 = run 6). One static ARM binary.
  *
- * v7 (Nov 17 2026, the panel lane; design: private notes, summarised in docs/PANEL.md) — still the ONE owner of ttyS1:
+ * v7 (Nov 17 2026, the panel lane; summarised in docs/PANEL.md) — still the ONE owner of ttyS1:
  *   + THE TACHOMETER without the spin: rising edges of GPIO 39 through the GPIO v2 character device (edge detection switched on
  *     for a 1 s window every 10 s, events read in one bulk read(), rpm from the kernel's timestamps). If the kernel refuses edge
  *     detection, or a window sees no edge, the line is sampled every 1 ms for 1 s (clock_nanosleep, never a spin) and, when that
@@ -18,7 +18,7 @@
  *   + THE SHUTDOWN FRAME (WD's `up_send_ctl DeviceShutdown 1` = FA 03 03 01 01 01 FB, what WD's shutdown.sh sends on the EX4
  *     before `sleep 20; poweroff`; captured under qemu-arm only, Nov 17 2026) is a kind, but it is sent ONLY by `ex4fan ctl
  *     poweroff` AND only by a daemon started with --allow-poweroff. Nothing in the trial passes that flag or runs that command:
- *     sending it on the real box is Kurt's word. MCUReset (WD's reboot frame) and DeviceShutdownByUPS are NOT kinds.
+ *     sending it on the real box is the owner's word. MCUReset (WD's reboot frame) and DeviceShutdownByUPS are NOT kinds.
  *   + the buttons stay LOGGED ONLY (and the last eight are in the JSON).
  *   + /tmp/ex4fan.json for the web UI (rename-written): fan, temps, per drive the temperature, power state and nine SMART
  *     attributes (5 9 10 12 187 194 197 198 199) from the sector it already reads; md state; space; what the glass was given;
@@ -97,9 +97,9 @@
  *       DIR/tty (the port), DIR/drives ("sda 41" lines), DIR/tach (rpm; no file = no tachometer), DIR/soc (millidegrees)
  *       DIR/now (v5: the system clock in seconds since 1970; no file = the real clock); a clock that WOULD be set is a line in DIR/clockset
  *   ex4fan daemon --test-hw [--tty ttySN] [--tach-chip TEXT --tach-line N]   an emulator: real kernel paths, another port / GPIO
- *   v7: ex4fan daemon ... [--panel] [--allow-poweroff]          LCD Tier A on; the poweroff frame allowed (Kurt's word only)
+ *   v7: ex4fan daemon ... [--panel] [--allow-poweroff]          LCD Tier A on; the poweroff frame allowed (the owner's word only)
  *   v7: ex4fan ctl refresh | send SLOT | notice shutdown|reboot | poweroff    a request to the running daemon (root only)
- *   v8: ex4fan ctl send-test        THE ONE TEST FRAME (Kurt, Nov 17 2026 15:13: "the trial may send ONE LCD test frame";
+ *   v8: ex4fan ctl send-test        THE ONE TEST FRAME (decided Nov 17 2026: the trial may send ONE LCD test frame;
  *       nobody can see the glass, so the ACK is the whole measurement): the host name as WD's SysName frame, tried ONCE
  *       (no retries), at most once per boot (a second request is refused: the result file in /tmp already exists),
  *       even with the panel OFF. The result is one line in /tmp/ex4fan.sendtest and in the log; the trial's
@@ -1241,7 +1241,7 @@ static void ctl_poweroff(void)
 {
 	struct frame f; int a, b;
 	if (!opt_poweroff) {
-		mark("ctl poweroff: REFUSED: this daemon was not started with --allow-poweroff (the trial never passes it). Sending WD's DeviceShutdown frame on the real box is Kurt's word. Nothing sent.");
+		mark("ctl poweroff: REFUSED: this daemon was not started with --allow-poweroff (the trial never passes it). Sending WD's DeviceShutdown frame on the real box is the owner's word. Nothing sent.");
 		return;
 	}
 	build_fixed(&f, PK_SHUTMSG); a = frame_cmd(&f, TRIES);
@@ -1673,7 +1673,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--fast")) fast = 1;
 		else if (!strcmp(argv[i], "--test-hw")) test_hw = 1;
 		else if (!strcmp(argv[i], "--panel")) opt_panel = 1;                  /* v7 */
-		else if (!strcmp(argv[i], "--allow-poweroff")) opt_poweroff = 1;      /* v7: Kurt's word only on the real box */
+		else if (!strcmp(argv[i], "--allow-poweroff")) opt_poweroff = 1;      /* v7: the owner's word only on the real box */
 		else if (!strcmp(argv[i], "--test-root") && i + 1 < argc) root = argv[++i];
 		else if (!strcmp(argv[i], "--tty") && i + 1 < argc) opt_tty = argv[++i];
 		else if (!strcmp(argv[i], "--tach-chip") && i + 1 < argc) opt_chip = argv[++i];
