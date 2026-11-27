@@ -54,7 +54,8 @@ password) after 3 failed tries. Those paths have never run.
 This repository does not contain WD's ramdisk and never will: you take it from your own unit. **Never publish or
 share the image you build: it contains WD's ramdisk.**
 
-1. **Your stock ramdisk.** On the stock firmware's root shell (see the main README for getting one), read
+1. **Your stock ramdisk.** On the stock firmware's root shell (the main README says you need one; this repository does not describe how to
+   get one), read
    `mtd2` into a file on the data volume and copy it to your computer:
    `dd if=/dev/mtd2 of=/mnt/HD/HD_a2/mtd2.dd bs=131072`. This only reads. Keep this file: it is also your backup.
    Then, on your computer: `head -c 2003252 mtd2.dd > uRamdisk-stock`. Its md5 must be
