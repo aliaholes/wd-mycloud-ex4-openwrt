@@ -25,7 +25,7 @@
 # AAAA on every member. A recovering or reshaping array stays with the stock system, which knows how to finish it.
 # Test mode (off the box only): EX4MDRO_TEST=1 with EX4MDRO_MEMBERS (names only; mdadm / blockdev are stubs on PATH),
 # EX4MDRO_MDSTAT (a file standing for /proc/mdstat) and EX4MDRO_TMP (not /tmp): `check` only.
-# Read-write is a later phase and needs its own command and Kurt's typed word per session; it is not here.
+# Read-write is a later phase and needs its own command and the owner's typed word per session; it is not here.
 set -u
 MNT=/mnt/md1; MD=/dev/md1; MDSTAT=/proc/mdstat; TMPD=/tmp
 if [ "${EX4MDRO_TEST:-0}" = 1 ]; then
