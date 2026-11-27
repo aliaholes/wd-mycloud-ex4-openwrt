@@ -1,5 +1,5 @@
 # What "What's this NAS for?" puts into an image: source (under profiles/), destination, mode. One line each.
-# build-v9.sh copies these into the OpenWrt tree's files/ (the integration patch is in private notes, not in this repo).
+# build-v9.sh copies these into the OpenWrt tree's files/ (the patch that wires them into the build is not in this repository).
 ex4-profile	/usr/sbin/ex4-profile	0755
 ex4-profile.init	/etc/init.d/ex4-profile	0755
 96_ex4_profile	/etc/uci-defaults/96_ex4_profile	0755
