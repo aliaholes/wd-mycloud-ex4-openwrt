@@ -68,18 +68,18 @@ Why it exists (each line is a thing the stock OpenWrt image would do wrong on a 
      gives uhttpd one listener, 127.0.0.1:80, no HTTPS listener and no /ubus prefix. The self-test gains a
      "-- security" block: root's password field as a state (never the hash), uhttpd's settings, and every TCP / UDP
      port bound to a non-loopback address (read from /proc/net). --pubkey is required: no key, no overlay.
- 13. (v8, with --webui DIR) THE WEB INTERFACE rides in (Kurt, Nov 17 2026 15:13): every file webui/FILES lists, at its
+ 13. (v8, with --webui DIR) THE WEB INTERFACE rides in (decided Nov 17 2026): every file webui/FILES lists, at its
      path (the same list the emulation test installs from), plus /etc/ex4/trial (the page's trial clock). Its own
      first-boot script 95_ex4_webui (it runs BEFORE this overlay's 99-ex4-trial) sets uhttpd to HTTPS on 443, port 80
      only redirects, the /ubus door with the interface's ACLs, and removes every web login (no default password: the
-     box is claimed with a six-digit code read over ssh). So with --webui, block (b) of item 12 does NOT run: it would
+     box is claimed with a code (six digits in v8, eight in v9) read over ssh). So with --webui, block (b) of item 12 does NOT run: it would
      pin the server back to loopback. Block (a) (root's empty field -> '*') and key-only ssh run ALWAYS. The
      self-test's "-- security" block then also asks the server from inside: port 80's answer to GET /ubus (a redirect
      to https), and three anonymous JSON-RPC calls over https (session login, ex4 status: both must be refused;
      ex4 setup_state: the one door open before sign-in). Every overlay carries /etc/ex4/overlay-stamp, which the
      bundle builders' overlay gate (build/v8/overlay-gate.py) checks together with the security fix itself.
  14. (v8, with --ex4fan) the self-test asks the panel daemon for ONE LCD frame, once (`ex4fan ctl send-test`: the
-     host name, tried once, its ACK logged; Kurt 15:13: nobody can see the glass, the ACK is the measurement) and
+     host name, tried once, its ACK logged; nobody can see the glass, the ACK is the measurement) and
      records /tmp/ex4fan.json + the daemon's panel lines (the panel lane's report, patch 2).
 
   python3 -I mkoverlay.py --network-file <02_network from the SAME OpenWrt image> --out overlay.cpio
