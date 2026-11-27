@@ -18,7 +18,7 @@
 #   4. ext4 is mounted ro,noload: no journal replay even if the journal is dirty.
 # It REFUSES unless exactly four SATA partitions carry the same array: super 1.0, raid5, 64K chunk,
 # left-symmetric, State clean, the same Events count on all four. Anything else: nothing is assembled.
-# Read-write is a later phase and needs its own command and Kurt's typed word per session; it is not here.
+# Read-write is a later phase and needs its own command and the owner's typed word per session; it is not here.
 set -u
 MNT=/mnt/md1; OUT=/tmp/ex4-md1-examine.txt; MD=/dev/md1
 say() { echo "ex4-md-ro: $*"; logger -t ex4-md-ro "$*" 2>/dev/null; }
