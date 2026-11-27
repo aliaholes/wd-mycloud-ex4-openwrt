@@ -44,7 +44,7 @@
 #                                    then sync + drop_caches, then the receipt again (-after); a refused start writes -refused.
 #                                    every (default) = the prep on every start; second = only from the session's 2nd start; off
 #   ex4-rwbench md5 NAME             (v9.7) only while up: md5 of Public/ex4-bench-v8/NAME (NAME = a-z 0-9 - .bin), the canary
-#   ex4-rwbench ucanary NAME --md5 HEX   (v9.8) only while up, untimed: THE USER-COPY CANARY (FABLE-OPT F3 row): NAME (a file the
+#   ex4-rwbench ucanary NAME --md5 HEX   (v9.8) only while up, untimed: THE USER-COPY CANARY (the perf review's F3 row): NAME (a file the
 #                                    client wrote over NFS, known md5 HEX) read with dd at four odd block sizes (4093 65521 131071
 #                                    1048573: partial last blocks) into md5sum, then copied file to file at bs=65521 (copy_to_user
 #                                    + copy_from_user), the copy md5'd and removed; the page cache dropped before every pass. Any
@@ -112,7 +112,7 @@
 #      address on any port but 2049 (a random-port mountd is caught, not only 111 / 32778-32780).
 #  11. (v9.3) KNOBS: RAM ONLY, BOUNDED, GIVEN BACK. skip_copy is written ONLY by `up`, after the rw switch and before the
 #      ext4 mount (on a mounted array ext4 got no stable pages at mount time, so a page changed under an in-flight write
-#      could leave parity silently wrong: LANE2-batching §3.3, raid5.c:7164-7172 + fs/super.c:1596-1597); any later
+#      could leave parity silently wrong: raid5.c:7164-7172 + fs/super.c:1596-1597); any later
 #      attempt is refused. `tune` runs only inside a session, every value bounded (stripe cache 256..4096, read-ahead
 #      128..8192 KiB, group threads 0..2), each read back. `up` records every knob it may touch (stripe_cache_size,
 #      group_thread_cnt, skip_copy, read_ahead_kb of md1 and of each member disk) BEFORE changing any, and THE CLEAN
@@ -166,7 +166,7 @@ STRIPE=${EX4RW_STRIPE:-128}               # ext4 stripe= hint in 4 KiB blocks; s
 SCACHE=${EX4RW_STRIPE_CACHE:-}            # md stripe_cache_size while rw (RAM only); empty = the kernel's own
 BUSER=ex4bench; BUID=1100
 IFACE=${EX4RW_IFACE:-br-lan}              # the LAN interface the servers bind to (a bond later: bond0)
-RAW_MIB=1024; RAW_SKIP=8192                 # (v9.3) the raw md read = stock's method (bench-2026-11-17/common.sh)
+RAW_MIB=1024; RAW_SKIP=8192                 # (v9.3) the raw md read = stock's method (stock's bench, Nov 17 2026)
 NFSD=/proc/fs/nfsd                          # (v9.4) nfsd's control files (threads, max_block_size)
 DBG=/sys/kernel/debug; TR=$DBG/tracing      # (v9.4) the function profiler lives here (CONFIG_FUNCTION_PROFILER: the v10b-prof twin)
 NETP=/proc/net                              # (v9.7) the listener check reads tcp/tcp6/udp/udp6 here
@@ -1042,7 +1042,7 @@ cmd_local() {
 	snap "$S/snap.local-r.b"; rm -f "$S/pid.work"
 	report "${LP}local dd read" "$S/snap.local-r.a" "$S/snap.local-r.b" "$LOCAL_MIB" | tee -a "$S/results.txt"
 	rm -f "$F"; sync; echo "$(up_s)" > "$S/heartbeat"
-	# v9.3: the raw md read, stock's method (common.sh: dd if=/dev/md1 of=/dev/null bs=1M count=1024 skip=8192): a READ of the
+	# v9.3: the raw md read, stock's method (stock's bench: dd if=/dev/md1 of=/dev/null bs=1M count=1024 skip=8192): a READ of the
 	# block device, page cache dropped first; nothing is written
 	[ "$TEST" = 1 ] || echo 3 > /proc/sys/vm/drop_caches
 	snap "$S/snap.raw-r.a"
@@ -1088,7 +1088,7 @@ cmd_tune() {         # v9.3: only inside a session; every argument checked befor
 	echo "tune: knobs now $(knobs)" | tee -a "$S/results.txt"
 	echo "$(up_s)" > "$S/heartbeat"
 }
-cmd_profile() {      # v9.4 (PERF-DESIGN-v2 R2): function-profiler counts for ONE local write; only while up, only on a kernel that has it
+cmd_profile() {      # v9.4 (the perf design's R2): function-profiler counts for ONE local write; only while up, only on a kernel that has it
 	PL=p; PM=$LOCAL_MIB; PT=60
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -1211,7 +1211,7 @@ cmd_md5() {          # v9.7: the canary's box half: md5 of one file the client w
 	echo "canary $N md5 $h bytes $sz ($(( ($(up_cs) - t0) / 100 )) s on the box)" | tee -a "$S/results.txt"
 	echo "$(up_s)" > "$S/heartbeat"
 }
-cmd_ucanary() {      # v9.8 (FABLE-OPT §6 row "F3 user-copy option": odd-block-size read md5 x 4): THE USER-COPY CANARY, untimed, on one
+cmd_ucanary() {      # v9.8 (the perf review's row "F3 user-copy option": odd-block-size read md5 x 4): THE USER-COPY CANARY, untimed, on one
 	# file the client wrote over NFS whose md5 it knows (the v9.7 pattern). The v9.7 canary is a TRANSPORT canary (nfsd copies in the
 	# kernel, the box md5 reads through the page cache); this one drives copy_to_user (dd's reads, odd sizes = partial last blocks) and
 	# copy_from_user (dd's writes into the pipe and into a file), i.e. exactly what CONFIG_UACCESS_WITH_MEMCPY changes, on whatever
@@ -1261,7 +1261,7 @@ cmd_ucanary() {      # v9.8 (FABLE-OPT §6 row "F3 user-copy option": odd-block-
 	echo "ucanary $N OK: md5 $H on 4 odd-block reads (bs $UCBS) + 1 odd-block copy (bs $UCCP); $sz bytes; kernel $KR; $(( ($(up_cs) - t0) / 100 )) s on the box" | tee -a "$S/results.txt"
 	echo "$(up_s)" > "$S/heartbeat"; DONE=1
 }
-xsnap() {            # v9.7, $1 = file: the instruments (FABLE-OPT §2.0): uptime, ctxt, NIC / sata / xor interrupts, softnet, nfsd pools, vmstat
+xsnap() {            # v9.7, $1 = file: the instruments: uptime, ctxt, NIC / sata / xor interrupts, softnet, nfsd pools, vmstat
 	{
 		echo "t $(up_cs)"
 		awk '$1 == "ctxt" { print "ctxt " $2 }' /proc/stat
@@ -1298,7 +1298,7 @@ cmd_xsnap() {        # v9.7: xsnap begin|end NAME around one client copy (outsid
 	esac
 	echo "$(up_s)" > "$S/heartbeat"
 }
-cmd_facts() {        # v9.7, read-only (FABLE-OPT §2.0 F0): what this box is, for the receipts. debugfs: mounted read-only for the
+cmd_facts() {        # v9.7, read-only (the perf review's F0): what this box is, for the receipts. debugfs: mounted read-only for the
 	# clk_summary read only if it is not mounted, and unmounted again (never one it found mounted)
 	[ $# = 0 ] || die "facts takes no argument"
 	need_root; need_dir; lock_cmd; cd /
