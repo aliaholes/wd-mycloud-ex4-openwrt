@@ -17,21 +17,21 @@ Marvell Kirkwood (one Feroceon 88FR131 ARMv5TE core, ~1 GHz), 512 MB RAM, 4x WD4
 left-symmetric, superblock 1.0, no write-intent bitmap), ext4. Linux 6.12.112 (our kernel), Samba 4.22.7, ksmbd-tools 3.5.6,
 busybox 1.37.0. The CPU is the limit. Receiving over the network takes 100% of it at ~55 MiB/s (run 10). For big
 files, what Samba costs per byte matters more than any disk setting. Stock's numbers: SMB write 37.0 MiB/s
-(27 ms of CPU per MiB), read 81.1 MiB/s (bench-2026-11-17/RESULTS.md).
+(27 ms of CPU per MiB), read 81.1 MiB/s (stock's bench, Nov 17 2026).
 
 ## The profiles (each is Balanced plus its own lines; `ex4-profile show NAME` prints this from the files)
 
 **Balanced**: the kernel's and Samba's own settings, plus two:
 | Setting | Value | When | RAM held | Why |
 |---|---|---|---|---|
-| vm.dirty_bytes | 64 MiB | live | 0 | at most 64 MiB waiting to be written (kernel default: ~20% of free memory, ~94 MiB here, estimated): less lost in a power cut, shorter stalls. The rw bench's own cap (SERVING.md 3.3 item 8) |
+| vm.dirty_bytes | 64 MiB | live | 0 | at most 64 MiB waiting to be written (kernel default: ~20% of free memory, ~94 MiB here, estimated): less lost in a power cut, shorter stalls. The rw bench's own cap |
 | vm.dirty_background_bytes | 16 MiB | live | 0 | background writing starts at 16 MiB (kernel default ~10%, ~47 MiB, estimated): a steadier stream |
 
 **Movies & big files** (Balanced, plus):
 | Setting | Value | When | RAM held | Why |
 |---|---|---|---|---|
 | md1 read-ahead | 6 MiB | live | 0 (page cache in flight) | 32 full stripes of 192 KiB, against the kernel's 384 KiB (2 x io_opt): keeps four disks busy on one stream |
-| md1 stripe_cache_size | 2048 | live* | **32 MiB** | kernel default 256 = 4 MiB (stock's 32 KiB pages made its 256 hold 32 MiB, SERVING 3.4): more full-stripe writes, fewer parity reads |
+| md1 stripe_cache_size | 2048 | live* | **32 MiB** | kernel default 256 = 4 MiB (stock's 32 KiB pages made its 256 hold 32 MiB): more full-stripe writes, fewer parity reads |
 | vm.dirty_background_bytes | 32 MiB | live | 0 | bigger batches reach the array; the 64 MiB ceiling stays |
 | ext4 atime | noatime | mount | 0 | reading never writes back the time a file was last read |
 | ext4 commit | 30 s | mount | 0 | fewer journal flushes in a long write. **A power cut can lose up to 30 s of new writes**, nothing older |
@@ -85,7 +85,7 @@ reconnect once · *drive* = an ATA command to each disk.
 - **Fixed at creation, so ADVICE only, never a button:** RAID level, chunk size (64 KiB here), ext4 stride/stripe-width,
   inode ratio. Note that stock mounts with `stripe=128` (512 KiB), which does not match 64 KiB x 3 data disks = 48
   blocks. That is a mount option and could change at mount time later. It is not a profile knob.
-- ksmbd may beat Samba on writes. That engine choice is a separate measured A/B (SERVING.md 1.4), not a profile.
+- ksmbd may beat Samba on writes. That engine choice is a separate measured A/B, not a profile.
 - Time Machine is a per-share switch on the Shares page, and needs Samba. ksmbd only detects Apple's AAPL context
   and never answers it.
 - A fair disk scheduler (mq-deadline/BFQ) needs a kernel build: `CONFIG_MQ_IOSCHED_DEADLINE`, `_KYBER` and
@@ -95,7 +95,7 @@ reconnect once · *drive* = an ATA command to each disk.
 
 | Samba | ksmbd 3.5.6 | In a profile |
 |---|---|---|
-| use sendfile | none (ksmbd's read path is `kernel_read` + `kernel_sendmsg`, one copy more, SERVING 1.1) | no |
+| use sendfile | none (ksmbd's read path is `kernel_read` + `kernel_sendmsg`, one copy more) | no |
 | min receivefile size, aio sizes | none | no |
 | smb2 leases (on by default) | `smb2 leases` (OFF by default, man page) | knob exists (`ksmbd.smb2_leases`), in no profile: the A/B below runs Samba only, so ksmbd leases stay unmeasured |
 | case sensitive | none | no |
@@ -138,7 +138,7 @@ smbconf P · ksmbdconf P · values P · json`
 
 `host/ex4-rwbench-client.sh ... --profiles "balanced movies smallfiles backups" --session K`:
 - One session = every named profile once, **Balanced always included**, in an order shuffled from a recorded seed
-  (run id + session). Three repeats = three sessions (`--session 1..3`). That means three tokens, each typed by Kurt,
+  (run id + session). Three repeats = three sessions (`--session 1..3`). That means three tokens, each typed by the owner,
   and each session gets a fresh order. Window 45 min (the bench's own ceiling). A profile that would not fit in the time left is
   skipped and named, never squeezed.
 - Per profile: box `profile NAME` (ex4-profile `--bench`; refused if vm.dirty_bytes > the bench's 64 MiB cap or if
@@ -148,7 +148,7 @@ smbconf P · ksmbdconf P · values P · json`
   files/s per phase. The box's existing `sample` lines record CPU busy (user/sys/softirq/iowait), CPU-ms per MiB, the
   **mv_xor interrupt delta per engine** and member vs md writes around every copy.
 - Writes only into the bench's own new folder (`Public/ex4-bench-v8/`). The token, the clean stop, the guard, the
-  reboot paths and every other wall stay unchanged. **One deliberate difference, flagged for Kurt:** an `up
+  reboot paths and every other wall stay unchanged. **One deliberate difference, flagged for the owner:** an `up
   --profile-ab` session mounts with `relatime` (the kernel default) instead of the bench's `noatime`, so Balanced is
   measured as it ships and noatime is a real change. atime is not a safety property (atime updates are ordinary
   journalled inode writes). The rest of the mount line is unchanged. In a profile session the bench's own two Samba lines
@@ -160,7 +160,7 @@ smbconf P · ksmbdconf P · values P · json`
 
 ## Proven off the box vs not
 
-Proven on the build box (receipts in private notes, not published):
+Proven on the build box (the receipts are not published):
 - `tests/profiles/run.sh`: **88/88 under the host busybox 1.36.1, 88/88 under the image's own busybox 1.37.0 (ARM,
   qemu-arm)**, with the image's uci for every choice. Covers: the four profiles are clean; 24 forbidden/off-list/out-of-range/shell
   lines are refused with nothing written; one bad line refuses the whole profile; a bad base refuses all profiles; the
