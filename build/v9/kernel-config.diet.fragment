@@ -1,9 +1,9 @@
-# build/v9/kernel-config.diet.fragment : the k-diet KERNEL TWIN (FABLE-OPT F6 = kernel lane K2 + K3 + K5; trial 3). Bench twin:
+# build/v9/kernel-config.diet.fragment : the k-diet KERNEL TWIN (the perf review's F6 = kernel lane K2 + K3 + K5; trial 3). Bench twin:
 # never a release until its arm passes. Read by `build-v9.sh twin-image --twin diet`. Line kinds: see kernel-config.uaccess.fragment.
 # Nothing here touches a hardening option: twin-image reads THE SECURITY KEEP LIST (build-v9.sh SECKEEP) and THE NAS KEEP LIST
 # (md / raid456 / mv_xor / async_tx, nfsd + NFSv4 + lockd + sunrpc + exportfs) back from the built kernel and refuses a loss.
-# No netfilter line: the image has no firewall (Kurt Nov 17 15:13: firewall4 / nftables out; N/.config:791 NETFILTER is off).
-# No SMB line: ksmbd / Samba stay exactly as they are (Kurt Nov 17 23:55: "I only need NFS").
+# No netfilter line: the image has no firewall (decided Nov 17: firewall4 / nftables out; N/.config:791 NETFILTER is off).
+# No SMB line: ksmbd / Samba stay exactly as they are (decided Nov 17: NFS only).
 KSTRICT yes
 #
 # ---- K2: the cgroup pile (OpenWrt router defaults; the NAS sets no cgroup limit; CGROUPS + CGROUP_PIDS + CPUSETS + namespaces +
@@ -39,7 +39,7 @@ KCFG CONFIG_JUMP_LABEL=y
 #
 # ---- K5: the hot modules built in (image text in 1 MiB sections, no module-area TLB walks, no ARM_MODULE_PLTS `current` form;
 #      stock had them built in). The kmod packages become empty ("NOTICE: module ... is built-in"); modules.builtin tells
-#      kmodloader. The NFS server stack is K5's "SUNRPC / NFSD / LOCKD for whichever server ships": NFS (Kurt 23:55). ----
+#      kmodloader. The NFS server stack is K5's "SUNRPC / NFSD / LOCKD for whichever server ships": NFS (decided Nov 17). ----
 # ext4: every file operation of the array's filesystem
 KCFG CONFIG_EXT4_FS=y
 # jbd2: ext4's journal (ext4=y needs it built in)
