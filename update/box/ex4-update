@@ -8,7 +8,7 @@
 #   ex4-update stage  [--url URL | --from DIR] [--insecure-http]   verify + unpack the payload into RAM, checked again
 #   ex4-update status                            what the last run found (also /tmp/ex4-update/state)
 #   ex4-update keys                              the signing keys this system holds (their usign key numbers)
-#   ex4-update install                           REFUSED: not built (writing the flash is Kurt's call, a later phase)
+#   ex4-update install                           REFUSED: not built (writing the flash is the owner's call, a later phase)
 #
 # URL is a folder that holds RELEASE, RELEASE.sig and the payload RELEASE names. Default: the first line of
 # /etc/ex4-update/url, else the project's GitHub "latest release" folder (no release is published there yet, so
@@ -210,7 +210,7 @@ case "$CMD" in
 status)  [ -f "$RUN/state" ] && cat "$RUN/state" || echo "result=never"; exit 0;;
 keys)    n=0; for k in "$KEYS"/*; do [ -f "$k" ] || continue; n=$((n + 1)); echo "key ${k##*/}: $(sed -n 1p "$k" | cut -c1-120)"; done
          echo "$n signing key(s) held in $KEYS"; exit 0;;
-install) say "REFUSED: installing is not built. A staged release stays in RAM; writing the flash is a later phase that Kurt decides."; exit 1;;
+install) say "REFUSED: installing is not built. A staged release stays in RAM; writing the flash is a later phase that the owner decides."; exit 1;;
 check|verify|stage) ;;
 *) echo "$USAGE" >&2; exit 64;;
 esac
