@@ -1,7 +1,7 @@
 # The front panel in ex4fan v7 (LCD Tier A, buttons, the shutdown frame, the tachometer, the JSON)
 
-ex4fan is still the ONE owner of `/dev/ttyS1`. v7 adds a panel module inside it. Design and the byte-exact frame table with
-receipts: the design notes (private, not published); the captures used by the tests are in `tests/captures/`
+ex4fan is still the ONE owner of `/dev/ttyS1`. v7 adds a panel module inside it. The design notes and the byte-exact frame table with
+receipts are not published; the captures used by the tests are in `tests/captures/`
 (`stock-lcd-frames-2026-11-17.json`, `stock-power-frames-2026-11-17.json`: frames only, made by WD's own `up_send_ctl` under
 qemu-arm, never on the box).
 
@@ -41,7 +41,7 @@ ex4fan ctl send-test         # v8: THE ONE TEST FRAME: the host name as WD's Sys
                              # self-test runs it once and records it; `ex4-trial.sh verdict` prints it as "LCD TEST FRAME:"
 ex4fan ctl refresh           # every field again (panel on)
 ex4fan ctl notice shutdown|reboot
-ex4fan ctl poweroff          # REFUSED unless the daemon runs with --allow-poweroff (Kurt's word on the real box)
+ex4fan ctl poweroff          # REFUSED unless the daemon runs with --allow-poweroff (the owner's word on the real box)
 ```
 Requests go through `/var/run/ex4panel/ctl/` (0700, root's files only).
 
