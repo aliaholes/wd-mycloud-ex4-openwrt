@@ -414,7 +414,7 @@ function m_array(req) {
 	a.members = sort(members, (x, y) => (x.bay ?? 9) - (y.bay ?? 9));
 	a.chunk_kb = int((+g('chunk_size')) / 1024); a.mismatch = match(g('mismatch_cnt'), /^[0-9]+$/) ? +g('mismatch_cnt') : null;
 	a.bitmap = (g('bitmap/location') || 'none') != 'none'; a.meta = g('metadata_version');
-	// no scrub is ever started by this system on its own (one drive of the test unit has a bad sector: SERVING.md 3.3)
+	// no scrub is ever started by this system on its own (one drive of the test unit has a bad sector)
 	return { array: a, vol, auto_check: false };
 }
 
