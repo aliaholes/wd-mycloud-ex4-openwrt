@@ -47,7 +47,7 @@ CONFIG_VERSION_FILENAMES=y
 CONFIG_PACKAGE_kmod-ata-marvell-sata=y
 CONFIG_PACKAGE_kmod-usb3=y
 CONFIG_PACKAGE_kmod-fs-ext4=y
-# ---- THE NAMED LIST (Kurt, Nov 17 2026 13:06 "go for it") ----
+# ---- THE NAMED LIST (decided Nov 17 2026) ----
 CONFIG_PACKAGE_mdadm=y
 CONFIG_PACKAGE_e2fsprogs=y
 CONFIG_PACKAGE_smartmontools=y
@@ -79,7 +79,7 @@ CONFIG_PACKAGE_ucode-mod-fs=y
 CONFIG_PACKAGE_ucode-mod-uci=y
 CONFIG_PACKAGE_ucode-mod-ubus=y
 CONFIG_PACKAGE_ucode-mod-uloop=y
-# samba: Time Machine (vfs_fruit), recycle bin, streams, quota reporting; no NetBIOS/SMB1 (SERVING N6); mDNS by static
+# samba: Time Machine (vfs_fruit), recycle bin, streams, quota reporting; no NetBIOS/SMB1; mDNS by static
 # avahi service files (the daemon is the no-dbus build, so samba's avahi client link is off)
 CONFIG_SAMBA4_SERVER_VFS=y
 CONFIG_SAMBA4_SERVER_QUOTAS=y
