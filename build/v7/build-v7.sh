@@ -8,7 +8,7 @@
 #
 # image  : OpenWrt 25.12.6 (tag v25.12.6 = r33311-981c978eff) built from source in DIR/openwrt: kirkwood/generic,
 #          the kernel config fragment (the SoC's XOR/copy engines: DMADEVICES + MV_XOR + ASYNC_TX_DMA; md + raid1 +
-#          raid456 BUILT IN with autodetect OFF; ext4 quotas), the package list of PLAN.md's NAMED LIST, an initramfs
+#          raid456 BUILT IN with autodetect OFF; ext4 quotas), the package list of THE NAMED LIST (diffconfig), an initramfs
 #          kernel. Every source comes from OpenWrt's own servers: git.openwrt.org for the tree and the packages feed
 #          (both pinned to the release's commits, checked), and OpenWrt's source mirror for every tarball, through
 #          build/v7/egress-allow.py, a local proxy that refuses every other host (its log is the receipt). OpenWrt's
