@@ -7,7 +7,7 @@
 #   sh build/v8/build-v8.sh bundle --work DIR --pubkey KEY.pub --wd-gpl WDMyCloud_EX4_GPL_v2.12.127_20181219.tar.gz
 #                                  [--out DIR] [--no-webui]
 #
-# What v8 changes against build/v7/build-v7.sh (each from Kurt's 15:13 answer or a v7 review, Nov 17 2026):
+# What v8 changes against build/v7/build-v7.sh (each from a decision of Nov 17 2026 or a v7 review):
 #   image  + px5g-mbedtls (the web interface's certificate maker; v7's image had none, so HTTPS could not start)
 #          + smartd out of rc.d, and an /etc/smartd.conf that watches nothing (review nit: a package update must not be
 #            able to turn its sample config into DEVICESCAN); smartctl stays for the interface's reads
@@ -16,9 +16,9 @@
 #            writes the receipt (no interface but lo, no name lookup, no direct route, the proxy allows OpenWrt and
 #            refuses the rest) and the stage REFUSES to start if any line fails. Without --netwall the stage runs as
 #            v7 did (the proxy in the environment only) and its receipt says so.
-#          = dnsmasq, firewall4, nftables, odhcpd, uboot-envtools, block-mount stay out (Kurt 15:13: leave them out),
+#          = dnsmasq, firewall4, nftables, odhcpd, uboot-envtools, block-mount stay out (decided Nov 17: leave them out),
 #            and the stage refuses a resolved .config or a rootfs that carries any of them
-#   bundle + the web interface (webui/; Kurt 15:13: it rides in this trial: HTTPS 443 on the LAN, claimed by a code
+#   bundle + the web interface (webui/; decided Nov 17: it rides in this trial: HTTPS 443 on the LAN, claimed by a code
 #            read over ssh, no default password); --no-webui leaves it out
 #          + THE OVERLAY GATE (build/v8/overlay-gate.py): the bundle stage REFUSES an overlay.cpio without the security
 #            fix (root '*', key-only ssh, exactly the given key, the web door in the state its flag asks for), so a
@@ -29,7 +29,7 @@
 #
 # image  : OpenWrt 25.12.6 (tag v25.12.6 = r33311-981c978eff) built from source in DIR/openwrt: kirkwood/generic,
 #          the kernel config fragment (the SoC's XOR/copy engines: DMADEVICES + MV_XOR + ASYNC_TX_DMA; md + raid1 +
-#          raid456 BUILT IN with autodetect OFF; ext4 quotas), the package list of PLAN.md's NAMED LIST, an initramfs
+#          raid456 BUILT IN with autodetect OFF; ext4 quotas), the package list of THE NAMED LIST (diffconfig), an initramfs
 #          kernel. Every source comes from OpenWrt's own servers: git.openwrt.org for the tree and the packages feed
 #          (both pinned to the release's commits, checked), and OpenWrt's source mirror for every tarball, through
 #          build/v7/egress-allow.py, a local proxy that refuses every other host (its log is the receipt). OpenWrt's
@@ -78,7 +78,7 @@ OWRT_COMMIT=64900e756efa667774214f9c6b17c113222e01f7       # "OpenWrt v25.12.6: 
 OWRT_REV=r33311-981c978eff                                  # version.buildinfo of the official release
 FEED_PACKAGES="src-git packages https://git.openwrt.org/feed/packages.git^093d551675b1119a06ef224d419905e8d6b2af1a"
 FEED_PKGS="samba4-server ksmbd-server kmod-fs-ksmbd nfs-kernel-server wsdd2 avahi-nodbus-daemon msmtp smartmontools smartd rsync proto-bonding"
-# packages the image must NOT carry (Kurt, Nov 17 2026 15:13: dnsmasq, the firewall, uboot-envtools and block-mount stay out)
+# packages the image must NOT carry (decided Nov 17 2026: dnsmasq, the firewall, uboot-envtools and block-mount stay out)
 NOTPKGS="kmod-md-mod kmod-md-raid456 dnsmasq dnsmasq-full firewall4 firewall nftables odhcpd odhcpd-ipv6only uboot-envtools block-mount luci luci-base"
 KVER=6.12.112
 PROXY_PORT=${PROXY_PORT:-18443}
