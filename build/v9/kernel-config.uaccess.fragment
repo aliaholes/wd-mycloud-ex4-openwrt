@@ -1,4 +1,4 @@
-# build/v9/kernel-config.uaccess.fragment : the k-uaccess KERNEL TWIN (FABLE-OPT F3 = kernel lane K1; trial 3). Bench twin:
+# build/v9/kernel-config.uaccess.fragment : the k-uaccess KERNEL TWIN (the perf review's F3 = kernel lane K1; trial 3). Bench twin:
 # never a release until its arm passes. Read by `build-v9.sh twin-image --twin uaccess`. Line kinds (twin-image's header):
 #   OWRT line   -> OpenWrt's top .config (CONFIG_KERNEL_X; kernel-defaults.mk copies it over the target config as CONFIG_X)
 #   KCFG line   -> target/linux/kirkwood/config-6.12 (symbols OpenWrt has no CONFIG_KERNEL_ for; overrides generic/config-6.12)
