@@ -1,5 +1,5 @@
-# build/v9/kernel-config.ud.fragment : the k-ud KERNEL TWIN (v9.8, Nov 18 2026; Kurt 12:45 "Go for whatever makes it awesome",
-# answering the morning report's call 2): uaccess (F3) + diet (F6) + nfsdtrack, ONE twin with its own token `ud`, never two
+# build/v9/kernel-config.ud.fragment : the k-ud KERNEL TWIN (v9.8, Nov 18 2026; decided that day, the second of three open
+# choices): uaccess (F3) + diet (F6) + nfsdtrack, ONE twin with its own token `ud`, never two
 # twins (build-v9.sh still refuses two). Run 17: uaccess = local write +19% / read +45% (user copies), diet = NFS write +7%
 # (in-kernel copies + cgroup charges); different costs, so they should add. Read by `build-v9.sh twin-image --twin ud`.
 # THE UNION RULE: every OWRT / KCFG / OMAY / KMAY line of kernel-config.uaccess / .diet / .nfsdtrack.fragment is here and
@@ -49,7 +49,7 @@ KCFG CONFIG_JUMP_LABEL=y
 #
 # ---- K5: the hot modules built in (image text in 1 MiB sections, no module-area TLB walks, no ARM_MODULE_PLTS `current` form;
 #      stock had them built in). The kmod packages become empty ("NOTICE: module ... is built-in"); modules.builtin tells
-#      kmodloader. The NFS server stack is K5's "SUNRPC / NFSD / LOCKD for whichever server ships": NFS (Kurt 23:55). ----
+#      kmodloader. The NFS server stack is K5's "SUNRPC / NFSD / LOCKD for whichever server ships": NFS (decided Nov 17). ----
 # ext4: every file operation of the array's filesystem
 KCFG CONFIG_EXT4_FS=y
 # jbd2: ext4's journal (ext4=y needs it built in)
