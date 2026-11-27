@@ -101,9 +101,10 @@ lines in the whole log, all from bringing the interface up.
 **Cause** (read in Linux 6.12.112's source; `tests/phy-id-check.py` re-checks each of these lines):
 
 1. The two PHYs answer to Linux's "Marvell 88E1510" driver entry (the 88E1510/1512/1514/1518 family, id
-   `0141.0ddx`). We did not read the id registers yet; the evidence is the driver's own temperature sensor on each
-   PHY with whole-degree readings that are not multiples of 5 (the 88E151x sensor; the older 88E1121 one steps by
-   5 °C), and WD's kernel carrying an init routine for the 88E1512. `ex4phy` reads the id in the next run.
+   `0141.0ddx`). Run 8 read the id registers with `ex4phy`: both PHYs answer `0141.0dd1` on register page 0
+   ([RUNS.md](RUNS.md), run 8). Before that read, the evidence was the driver's own temperature sensor on each PHY with
+   whole-degree readings that are not multiples of 5 (the 88E151x sensor; the older 88E1121 one steps by 5 °C), and
+   WD's kernel carrying an init routine for the 88E1512.
 2. That driver entry declares fibre support, and its `marvell_read_status()` therefore selects the PHY's **fibre**
    register page (page 1) on every poll, reads the fibre link state (down: nothing is connected there), and
    switches back to the copper page (page 0). phylib polls once a second.
@@ -131,4 +132,4 @@ We did not build a kernel: this release boots OpenWrt's own.
 
 LED polarity and GPIO 46-48; which outputs power the USB ports and the bays; the seven unknown inputs; the LCD
 frames; which button press sends `PWR` versus `PWR2`; whether the micro keeps the fan speed when nobody talks to
-it; the PHYs' exact id (`ex4phy` prints it in the next run).
+it. (The PHYs' id was read in run 8: `0141.0dd1`, see "The link flap" above.)
