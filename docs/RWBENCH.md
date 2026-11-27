@@ -33,13 +33,13 @@ One session, in this order (the client does it all; each line is one row of `res
    folder, THE CLEAN STOP runs, and the trial reboots back to stock (unless the stop said "look": then it stays up).
 
 Around every copy the box records: MiB/s (the client's clock for network copies), the whole CPU's busy share split
-user / sys / softirq / iowait, **CPU-ms per MiB** (busy% x 10 / MiB/s, the unit `v7-design/SERVING.md` uses), the
+user / sys / softirq / iowait, **CPU-ms per MiB** (busy% x 10 / MiB/s), the
 **`mv_xor` interrupt count of each engine** (a non-zero delta during a write is the proof that the engines carried
 work), and **MiB written to the four members vs to md1** (about 4/3 for full-stripe RAID5: the parity is real).
 
 Stock's numbers to beat (bench of Nov 17 2026, same box, client: the client box, mount options not recorded): SMB write
 **37.0 MiB/s at 100% CPU (27.0 ms/MiB)**, SMB read **81.1 MiB/s (~10 ms/MiB)**, local RAID5 write 88.4 MiB/s.
-The bar (PLAN.md): SMB write >= 50, read >= 81. The A/B rule was written before any number (SERVING §1.4): ksmbd
+The bar: SMB write >= 50, read >= 81. The A/B rule was written before any number: ksmbd
 replaces Samba for bulk shares only if it is >= 15% better on write AND on CPU per MiB.
 
 ## How to run it (run 11)
@@ -56,8 +56,7 @@ replaces Samba for bulk shares only if it is >= 15% better on write AND on CPU p
    `$SUDO tee` (the client read-ahead, `--nfs-ra-kb` / `cra=`), so a wrapper that feeds the sudo password on stdin
    (`sudo -S < pwfile`) swallows the value: `tee` writes nothing and the client's read-back wall refuses (run 16B, a safe
    refusal). Use the askpass form instead: a wrapper that runs `SUDO_ASKPASS=<a script printing the password> sudo -A -k "$@"`
-   (the build box, `$BUILD/run16/sudo-wrap2.sh` + `askpass.sh`; launched through one file holding the full environment, e.g.
-   `run17/launch-client.sh`). Without `EX4RW_SUDO` at all, mount.nfs fails (run 16A1/16A2).
+   (what the build box used, launched through one file holding the full environment). Without `EX4RW_SUDO` at all, mount.nfs fails (run 16A1/16A2).
 4. It prints a line like `echo 'EX4-RW 11-l2off-... 3fa9c2d1e0b7' > /tmp/ex4-rw-ok`. **You type that line
    yourself**, in your own ssh session on the box. Nothing writes that file for you. The client waits up to 15 minutes,
    then goes on by itself: up, local, the A/B, [NFS], [zeros], results, stop, home. If the stop says "SAFE, but
@@ -69,22 +68,22 @@ replaces Samba for bulk shares only if it is >= 15% better on write AND on CPU p
 
 Run 13 measured our 6.12 trial against stock: served SMB writes already win (Samba 40.4, ksmbd 43.0 vs 37.0 MiB/s),
 reads lose (Samba 57.2, ksmbd 73.1 vs 81.1), local write 49.7 vs 86.7, local read 77.8 vs stock's raw md1 read 111.
-v9.3 lets ONE session measure the md knobs `perf/PERF-DESIGN-v2.md` names, reads included, against that baseline.
+v9.3 lets ONE session measure the md knobs the perf design names, reads included, against that baseline.
 
 - **`up --skip-copy 0|1`** (client `--skip-copy`): md's `skip_copy`, written after the rw switch and BEFORE the ext4
   mount, read back, journalled. Never on a mounted array: ext4 takes stable pages from md at mount time, so a later
-  switch leaves pages that can change under an in-flight write and parity silently wrong (`perf/LANE2-batching.md`
-  §3.3; `raid5.c:7164-7172`, `fs/super.c:1596-1597`). `tune --skip-copy` is refused for that reason. One skip_copy
+  switch leaves pages that can change under an in-flight write and parity silently wrong
+  (`raid5.c:7164-7172`, `fs/super.c:1596-1597`). `tune --skip-copy` is refused for that reason. One skip_copy
   value per session: compare skip_copy 0 vs 1 across two sessions, each with the same control arm.
 - **`tune`** (only inside a session): `--stripe-cache 256..4096`, `--readahead-kb 128..8192` (md1 AND each member
-  disk; WD sets 1024 on the members, `perf/LANE-platform.md`), `--group-threads 0..2`. Every argument is checked
+  disk; WD sets 1024 on the members), `--group-threads 0..2`. Every argument is checked
   before anything is written; each value is read back; the journal gets "before -> after".
 - **Given back.** `up` records every knob it may touch BEFORE changing any; THE CLEAN STOP (by hand, the guard, a
   trap or a reboot path) writes each back and reads it back before `mdadm --stop` (journal: "knobs restored (read
   back)"; anything that did not take is listed as NOT restored). All of it is RAM; a reboot resets it anyway.
 - **Every results line** (local rows, sample ends) ends with `| knobs sc=.. gt=.. skip=.. ra_md=.. ra_members=..,..`.
 - **`local` has a third row**: the raw md read by stock's own method (`dd if=/dev/md1 of=/dev/null bs=1M count=1024
-  skip=8192`, `bench-2026-11-17/common.sh`), page cache dropped first, a read only. `local --label aN` prefixes the rows.
+  skip=8192`, as in stock's bench of Nov 17 2026), page cache dropped first, a read only. `local --label aN` prefixes the rows.
 - **The client's `--arms "sc=256,ra=128,gt=0 sc=1024,ra=1024,gt=0 ..."`** runs after the baseline (local +
   `--engines` [+ NFS]) of the same session: per arm `tune`, the labelled local rows, then `--arm-engines`' write +
   read runs named `aN-ENGINE-wR/rR`. No `--arms` = the plan of before v9.3, exactly.
@@ -102,7 +101,7 @@ time on it. Proven off the box (the build box, `$BUILD/v93/`): see "Proven off t
 
 ## NFS block size, NFS arms, the profile verb (v9.4)
 
-The next rungs of `perf/PERF-DESIGN-v2.md` §3 (N0/N5 max_block_size, R2's profile twin), built while run 14 measured
+The next rungs of the perf design (N0/N5 max_block_size, R2's profile twin), built while run 14 measured
 the v9.3 arms. Every default is the v9.3 plan exactly: no new flag = the same commands in the same order.
 
 - **`serve nfs CLIENT --unauthenticated-nfs --max-block-kb 64|128|256|512|1024`** (client `--nfs-block KB`, needs
@@ -129,7 +128,7 @@ the v9.3 arms. Every default is the v9.3 plan exactly: no new flag = the same co
   `ops_complete_reconstruct` hits that R2's mean batch length divides by. THE CLEAN STOP writes 0 to
   `function_profile_enabled` whenever it exists, and `stop` runs even with nothing up while the profiler reads on.
   Window: each profile is priced at 10 MiB/s + 60 s (~4.4 min at 2 GiB).
-- **The review's nits 1-3** (`../../v9-arms-REVIEW.md`): a knob that does not go back keeps `knobs.saved` (and a
+- **The review's nits 1-3** (the review of the v9 arms): a knob that does not go back keeps `knobs.saved` (and a
   `knobs.partial-*` copy), so a later `stop` retries it (`stop` runs again whenever the record exists); skip_copy is
   never written on a mounted array, any value (journalled as "still mounted: not touched"); a member disk with no
   `read_ahead_kb` is journalled and left alone (not recorded, not tuned) instead of refusing `up`.
@@ -141,8 +140,7 @@ own debugfs is never touched), and every number.
 
 ## NFS first-class: NFSv4.2, threads, client read-ahead, the data canary, instruments (v9.7)
 
-Kurt's ruling (Nov 17 2026 23:55, verbatim): *"Prolly not jumbo frames. I only need NFS. Nothing uses SMB if it doesn't have
-to."* The finished box is NFS-only, no jumbo frames; the bench keeps its SMB engines for comparison only (no new SMB work).
+Decided Nov 17 2026: the finished box is NFS-only (nothing uses SMB unless it has to), no jumbo frames; the bench keeps its SMB engines for comparison only (no new SMB work).
 Every v9.7 piece is behind a new flag: with none of them, the client's plan and every box command are v9.4's exactly
 (the stub test checks the order, the serve arguments and the mount options byte for byte).
 
@@ -157,7 +155,7 @@ Every v9.7 piece is behind a new flag: with none of them, the client's plan and 
   and the client does one untimed create + remove after every v4.2 mount, so the grace never lands inside a timed
   copy. `--threads 1..16` = the threads rpc.nfsd starts (default 8, v9.4's), read back. Results lines carry
   `vers=... threads=...` only when either was asked for.
-- **Client-side** (FABLE-OPT F2): `--nfs-ra-kb N` (128..16384) writes THIS machine's `read_ahead_kb` on the NFS mount's
+- **Client-side** (the perf review's F2): `--nfs-ra-kb N` (128..16384) writes THIS machine's `read_ahead_kb` on the NFS mount's
   bdi (`/sys/class/bdi/MAJ:MIN`, from `mountpoint -d`) after every mount, reads it back, and writes the value it found
   back before every unmount (also in the trap). `--nfs-rsize` / `--nfs-wsize` (KiB, 32..1024 powers of 2) each on its own;
   default = `--nfs-block`, as v9.4.
@@ -174,7 +172,7 @@ Every v9.7 piece is behind a new flag: with none of them, the client's plan and 
   in-kernel (no copy_to_user / copy_from_user): it does NOT check a user-copy option (F3); `--ucanary` does. The pattern is removed at the end; `client.log` keeps its seed + md5 (the seed remakes it).
   Window: + the box's md5 read of every NFS write at 30 MiB/s (~3.4 min for 3 x 2 GiB): the run-15 shape (NFS baseline +
   one NFS arm at 3 x 2 GiB) no longer fits 45 min with the canary on; split it (`--engines ''` or a lower `--runs`).
-- **`--instruments`** (FABLE-OPT §2.0): `facts` once after `up` (read-only: cpuinfo, `clk_summary` with debugfs mounted
+- **`--instruments`**: `facts` once after `up` (read-only: cpuinfo, `clk_summary` with debugfs mounted
   read-only for the read if it is not, cpufreq, each NIC's driver / mtu / speed / rps / GRO knobs, mv643xx_eth / sata_mv
   module parameters, `/proc/interrupts`, nfsd's knobs -> `box-facts.txt`); around every client copy, outside its timed
   window, `xsnap begin|end NAME` (ctxt, NIC / sata / xor interrupts, softnet processed / dropped / squeezed, nfsd
@@ -197,13 +195,13 @@ client's bdi read-ahead on a real NFS mount, and every number.
 
 ## The user-copy canary, the nfsd start-wait, the variant wall (v9.8)
 
-Kurt, Nov 18 2026 12:45 (verbatim): *"Good morning, love. Go for whatever makes it awesome."* (answering three calls: the
+Decided Nov 18 2026: go ahead with all three open choices (the
 kernel option over the nfsdcld package, a combined uaccess+diet twin, and the uaccess repeat with a user-copy canary first).
 Every v9.8 piece is behind a new flag except the start-wait, which is a fix: with no new flag the client's plan and every
 box command are v9.7's.
 
 - **`ucanary NAME --md5 HEX`** (box) / **`--ucanary`** (client; needs `--nfs`, turns the canary on, refused with
-  `--no-canary`): THE USER-COPY CANARY, FABLE-OPT §6's "F3 user-copy option: odd-block-size read md5 x 4" (NFS-only, so no
+  `--no-canary`): THE USER-COPY CANARY, the perf review's "F3 user-copy option: odd-block-size read md5 x 4" (NFS-only, so no
   Samba leg). Once per session (one kernel per session), right after the FIRST canary'd NFS write's box md5 said OK and the
   client unmounted, untimed: the box reads that file with busybox `dd` at four odd block sizes (4093, 65521, 131071,
   1048573 bytes: every last block partial) into `md5sum`, then copies it file to file with `dd bs=65521` (copy_to_user AND
@@ -378,7 +376,7 @@ the kernel line and stops at once; stock rebuilds. The known unreadable sector o
 
 **NFS authenticates by address only, so it is OFF by default (v9).** NFSv3 with `sec=sys` trusts the client's IP
 and the uid it claims; there is no password in the protocol. That breaks the wall "every LAN listener
-authenticates", so it runs only when the client is given `--nfs` (Kurt's call per session), and the box refuses
+authenticates", so it runs only when the client is given `--nfs` (the owner's call per session), and the box refuses
 `serve nfs` without `--unauthenticated-nfs`. When it does run: the bench folder to the one client address, every
 client user squashed to the bench account, rpcbind / statd / mountd / nfsd on the LAN only for those copies. A real
 NFS service on this box (P0) will need the same honesty in its UI.
