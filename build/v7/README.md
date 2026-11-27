@@ -39,7 +39,7 @@ attempt: glib's meson tried to clone an optional subproject (sysprof) from `gitl
   The device tree is ours (`dts/`, with `-DEX4_TRIAL`: every NAND partition read-only); its two `marvell,orion-xor`
   nodes (four channels, `dmacap,xor` + `dmacap,memcpy`) come from the kernel's `kirkwood.dtsi` and are enabled. The PHY
   set-up that ended the link flap in v6 (both PHYs on the generic driver) is in the same tree, unchanged.
-- **Packages:** PLAN.md's named list (mdadm, e2fsprogs, smartmontools + smartd, samba4-server with vfs_fruit / recycle /
+- **Packages:** THE NAMED LIST in `diffconfig` (mdadm, e2fsprogs, smartmontools + smartd, samba4-server with vfs_fruit / recycle /
   streams and quota reporting, ksmbd, nfs-kernel-server + nfsd, wsdd2, avahi without dbus, msmtp, bonding, rsync,
   USB storage + vfat + exfat, rpcd + rpcd-mod-ucode, uhttpd + its ubus module). **Left out:** dnsmasq, odhcpd,
   firewall4 / nftables, ppp (a NAS on a home LAN is a DHCP client, not a router), uboot-envtools (it writes the U-Boot
@@ -67,7 +67,7 @@ raid5, 64K chunk, left-symmetric, State clean, the same Array UUID and the same 
 4. ext4 is mounted `ro,noload` (no journal replay).
 
 There is **no read-write command in this image**. Writing to the array is a later phase: its own command, which refuses
-unless `/tmp/ex4-rw-ok` holds a token Kurt types in that session (never created by any script), plus SERVING.md 3.3's
+unless `/tmp/ex4-rw-ok` holds a token the owner types in that session (never created by any script), plus these
 conditions (clean array, frozen sync, bounded window, clean stop on every return path).
 
 ## Size
