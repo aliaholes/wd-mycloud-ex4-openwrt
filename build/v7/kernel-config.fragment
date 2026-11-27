@@ -1,6 +1,6 @@
 # build/v7/kernel-config.fragment: merged into target/linux/kirkwood/config-6.12 (a line here replaces the same
 # symbol's line there). =y in the target config beats any kmod package's =m override (scripts/kconfig.pl 'm+').
-# THE XOR ENGINES (SERVING section 0.3): MV_XOR is a bool, so only our own kernel can have it.
+# THE XOR ENGINES: MV_XOR is a bool, so only our own kernel can have it.
 CONFIG_DMADEVICES=y
 CONFIG_DMA_ENGINE=y
 CONFIG_MV_XOR=y
