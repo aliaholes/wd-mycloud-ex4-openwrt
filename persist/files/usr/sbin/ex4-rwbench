@@ -1,0 +1,8 @@
+#!/bin/sh
+# ex4-rwbench (EX4 persistent system v1): NOT the read-write bench. The bench is not in this image (ex4-svc owns md1).
+# This shim exists for ONE caller: ex4fan's built-in fail-safe (userland/ex4fan.c rw_stop_for_reboot) runs
+# `/usr/sbin/ex4-rwbench stop --for-reboot` before its reboot while /tmp/ex4-rw-active exists, and ex4-svc keeps that
+# file while md1 is read-write. So a fan fail-safe reboot stops NFS, unmounts and stops md1 first. Anything else: refused.
+if [ $# = 2 ] && [ "$1" = stop ] && [ "$2" = --for-reboot ]; then exec /usr/sbin/ex4-svc stop --for-reboot; fi
+echo "ex4-rwbench: the read-write bench is not in the persistent image; md1 belongs to ex4-svc (start | stop | status)" >&2
+exit 64
