@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+# ex4-persist (EX4 persistent system v1): S05 = attach mtd3's UBI, mount ex4data, restore + bind /etc/config BEFORE
+# S10boot runs the uci-defaults. K85 = save + umount + detach. /usr/sbin/ex4-persist says what persists and why.
+START=05
+STOP=85
+boot() { /usr/sbin/ex4-persist boot; }
+start() { return 0; }
+stop() { /usr/sbin/ex4-persist stop; }
