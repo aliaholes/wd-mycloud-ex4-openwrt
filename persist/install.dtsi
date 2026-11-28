@@ -1,0 +1,25 @@
+/*
+ * install.dtsi (EX4 persistent system v1, FINALIZE B2, Nov 26 2026): appended to the PREPROCESSED
+ * dts/kirkwood-wd-mycloud-ex4.dts compiled WITHOUT -DEX4_TRIAL (on that path EX4_RO expands to nothing,
+ * so uImage / ramdisk / image / config / reserve would all be writable). This fragment puts read-only back on every
+ * partition except "image" (mtd3, the UBI with ex4boot + ex4data). u-boot and "rescue firmware" carry read-only in
+ * the source on every path. Result: ONE writable partition. mkpersist.py proves it: the decompiled DTB must equal the
+ * trial DTB's decompile minus exactly the one read-only line inside partition@b00000. Never the quarantined
+ * Nov 16 ex4-install.dtb (INSTALL-PLAN.md:27-28).
+ */
+&nand {
+	partitions {
+		partition@100000 {
+			read-only;
+		};
+		partition@600000 {
+			read-only;
+		};
+		partition@ec00000 {
+			read-only;
+		};
+		partition@d800000 {
+			read-only;
+		};
+	};
+};
