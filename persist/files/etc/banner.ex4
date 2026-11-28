@@ -1,0 +1,5 @@
+
+ EX4: OpenWrt from the box's own flash (persistent system v1). Settings live in ex4data (mtd3).
+ State: cat /tmp/ex4-persist.state; ex4-markgood status; ex4-svc status   Safe-config boot: /tmp/ex4-safe-config
+ Array: ex4-svc start | stop      A clean reboot: reboot   (K01 stops md1 first)
+
