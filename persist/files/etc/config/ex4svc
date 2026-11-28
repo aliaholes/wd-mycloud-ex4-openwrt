@@ -1,0 +1,9 @@
+# ex4svc (EX4 persistent system v1): SERVICE MODE settings, read by /usr/sbin/ex4-svc at boot. Persisted in ex4data.
+# enabled 0 = md1 is not assembled at boot (the box still boots, ssh + web work). The knobs are bounded in ex4-svc.
+
+config svc 'main'
+	option enabled '1'
+	option nfs '1'
+	option nfs_threads '8'
+	option stripe_cache '1024'
+	option readahead_kb '1024'
