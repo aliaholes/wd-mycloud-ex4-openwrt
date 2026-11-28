@@ -1,0 +1,17 @@
+#!/bin/sh
+# 96_ex4_persist_boot (EX4 persistent system v1): every boot, after 95_ex4_webui's slot.
+# 1. 95_ex4_webui runs on the FIRST boot only (ex4-persist removes it once the store is seeded); its two RAM-side
+#    effects come back here: the watcher's cron line and cron enabled. Plus the store's save every 15 minutes.
+# 2. THE CERT FIX, second half: a cert whose names are not this box's name (CN=(none) from an older image, or a rename
+#    since) is made again; in MODE persist it is saved to the store at once.
+mkdir -p /etc/crontabs
+grep -q 'ex4-apply watch' /etc/crontabs/root 2>/dev/null || echo '*/5 * * * * /usr/libexec/ex4/ex4-apply watch' >> /etc/crontabs/root
+grep -q 'ex4-persist save' /etc/crontabs/root 2>/dev/null || echo '*/15 * * * * /usr/sbin/ex4-persist save' >> /etc/crontabs/root
+/etc/init.d/cron enable 2>/dev/null
+H=$(cat /proc/sys/kernel/hostname)
+N=$(sed -n 's/.* names=\([^ ]*\).*/\1/p' /etc/ex4/cert.info 2>/dev/null)
+if [ "$N" != "$H,$H.local" ] || [ ! -s /etc/uhttpd.crt ]; then
+	/usr/libexec/ex4/ex4-apply cert && /usr/sbin/ex4log note "cert made again for '$H' (was '${N:-none}')" 2>/dev/null
+	/usr/sbin/ex4-persist save
+fi
+exit 0
