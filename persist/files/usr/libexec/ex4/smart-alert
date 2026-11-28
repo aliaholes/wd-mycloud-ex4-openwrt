@@ -1,0 +1,11 @@
+#!/bin/sh
+# smart-alert (EX4 persistent system v1): smartd's -M exec hook (/etc/smartd.conf). A STUB that keeps every alert:
+# one line into /tmp/ex4-alerts.log, the persistent /ex4data/var/alerts.log (when ex4data is mounted), syslog and the
+# black box. Nothing leaves the box yet.
+# TODO(EX4 FINALIZE E2): forward to Telegram + the inbox through a LAN relay on a home box (no token ever on the EX4).
+L="$(date '+%F %T') smartd device=${SMARTD_DEVICE:-?} type=${SMARTD_FAILTYPE:-?} first=${SMARTD_TFIRST:-?} msg=$(echo "${SMARTD_MESSAGE:-?}" | tr '\n' ' ' | cut -c1-300)"
+echo "$L" >> /tmp/ex4-alerts.log
+grep -q ' /ex4data ' /proc/mounts && { mkdir -p /ex4data/var && echo "$L" >> /ex4data/var/alerts.log && sync; }
+logger -t ex4-alert -p daemon.crit "$L"
+[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "ALERT $L" >/dev/null 2>&1
+exit 0
