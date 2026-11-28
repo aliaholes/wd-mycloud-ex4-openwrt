@@ -1,0 +1,116 @@
+#!/usr/bin/python3 -I
+"""nandwrite-strict (FINALIZE C4 K5, Nov 27 2026): a STRICT fake of mtd-utils 2.3.0's nandwrite (nand-utils/nandwrite.c d08d1d61, the
+source of K2's nandwrite 5f628c48) for the c4sim sim. THE LAW (C2.md, after A6): a fake enforces the REAL tool's usage, copied from
+its source, or the proof runs against the real binary. Copied here:
+  getopt_long "hb:mnNoOpqs:akV" + --version --input-skip= --input-size= --skip-bad-blocks-to-start --help --blockalign= --markbad
+  --noecc --noskipbad --oob --onlyoob --pad --quiet --start= --autoplace --skip-all-ffs (nandwrite.c:110-130); 1 or 2 operands
+  (MTD device [input], "-" or none = stdin; else display_help(EXIT_FAILURE), :223-234); -s / --input-* via simple_strtoll; -s < 0
+  refused (:197); -b power of two > 0 (:201-207); -a with -n refused (:209); -p with -o refused (:212); -s not page-aligned refused
+  (:306); stdin + --input-skip refused ("seeking stdin not supported", :344-349); without -p a length that is not whole pages refused
+  (:367); the image must fit from -s to the end (:394).
+  WRITE SEMANTICS (the loop, :419-608): page by page from -s; at each new eraseblock "Writing data to block %lld at offset 0x%llx"
+  on stdout (:438-440), then the bad-block check: a bad block is SKIPPED and the data SHIFTS to the next block, with "Bad block at
+  %llx, 1 block(s) will be skipped" on stderr (:456-463); -k: an all-0xff page is not written (:561); -p pads the last page with 0xff.
+  NAND: a write can only clear bits (new = old AND data), so writing a non-erased page corrupts it the way real flash does (nandwrite
+  never erases).
+  AMEND 2 (Nov 27 2026, finding F1): THE NEXT-BLOCK PROBE, as the real loop does it. On STDIN, imglen is only a flag (= pagelen,
+  :345) until a read returns 0 bytes (:491-499), and that read comes AFTER the new-block check (:424-470 then :473): so when the
+  input ends exactly at a block boundary, the loop runs once more, prints "Writing data to block N", checks block N for badness
+  (printing the "Bad block at" line and skipping it if bad, then the block after it), and only then reads EOF and stops, rc 0.
+  With a FILE operand imglen counts down to 0 and the loop ends at its own condition: no probe. (Seen on the box: C4a's 189-block
+  range printed 190 "Writing data" lines; C4b's 1501-block range printed 1503 and "Bad block at bba0000", box/C4b.3-sim.txt.)
+  Test-only knobs: $CASE/ctl/nw_flip = a block number: after the write, one byte of that block is changed silently (a bad write
+  that prints nothing: the read-back must catch it); $CASE/ctl/nw_text = a line printed on stderr at the end (text to place).
+The device is a REGULAR FILE inside $CASE (any path outside it, or under /dev, is refused, exit 98). Bad blocks: $CASE/ctl/badblocks
+(one block number per line; default 1501). Every call is logged to $CASE/calls.log. SIM_NW_RC=N in $CASE/ctl/nandwrite_rc = exit N
+without writing.
+"""
+import getopt, os, sys
+CASE = os.environ.get('CASE', '')
+BLK = 131072; PAGE = 2048
+argv = sys.argv[1:]
+def log(s):
+    if CASE: open(os.path.join(CASE, 'calls.log'), 'a').write(s + '\n')
+log('nandwrite ' + ' '.join(argv))
+def refuse(why, rc=1):
+    log(f'STRICT-REFUSED[nandwrite]: {" ".join(argv)}: {why}')
+    sys.stderr.write(f'nandwrite: {why}\n'); sys.exit(rc)
+def strtoll(s):          # simple_strtoll: strtoll(base 0) over the whole string
+    try:
+        return int(s, 0) if not (len(s) > 1 and s[0] == '0' and s[1] not in 'xX') else int(s, 8)
+    except ValueError:
+        refuse(f'bad number "{s}"')
+LONG = ['version', 'input-skip=', 'input-size=', 'skip-bad-blocks-to-start', 'help', 'blockalign=', 'markbad', 'noecc', 'noskipbad',
+        'oob', 'onlyoob', 'pad', 'quiet', 'start=', 'autoplace', 'skip-all-ffs']
+try:
+    opts, ops = getopt.gnu_getopt(argv, 'hb:mnNoOpqs:akV', LONG)
+except getopt.GetoptError as e:
+    refuse(f'getopt refused: {e} (display_help(EXIT_FAILURE))')
+pad = skipff = oob = noecc = autoplace = False; start = 0; iskip = 0; isize = 0; align = 1
+for o, v in opts:
+    if o in ('-h', '--help', '-V', '--version'): sys.exit(0)
+    elif o in ('-p', '--pad'): pad = True
+    elif o in ('-k', '--skip-all-ffs'): skipff = True
+    elif o in ('-o', '--oob'): oob = True
+    elif o in ('-n', '--noecc'): noecc = True
+    elif o in ('-a', '--autoplace'): autoplace = True
+    elif o in ('-s', '--start'): start = strtoll(v)
+    elif o == '--input-skip': iskip = strtoll(v)
+    elif o == '--input-size': isize = strtoll(v)
+    elif o in ('-b', '--blockalign'):
+        try: align = int(v)
+        except ValueError: align = 0
+    elif o in ('-m', '--markbad', '-N', '--noskipbad', '-O', '--onlyoob', '-q', '--quiet', '--skip-bad-blocks-to-start'): pass
+if start < 0: refuse(f"Can't specify negative device offset with option -s: {start}")
+if align <= 0 or (align & (align - 1)): refuse(f"blockalign {align} is not a positive power of two")
+if autoplace and noecc: refuse('Autoplacement and no-ECC are mutually exclusive')
+if pad and oob: refuse("Can't pad when oob data is present")
+if len(ops) < 1 or len(ops) > 2: refuse(f'{len(ops)} operands (want the MTD device and at most one input): display_help(EXIT_FAILURE)')
+dev = ops[0]; img = ops[1] if len(ops) == 2 else '-'
+for p in (dev, img):
+    if p != '-' and (not CASE or not os.path.abspath(p).startswith(CASE + '/') or p.startswith('/dev')):
+        log(f'FAKE REFUSED path outside the case: {p}'); sys.exit(98)
+if not os.path.isfile(dev): refuse(f'{dev}: No such file or directory')
+if oob: refuse('the C4 fake models data-only writes (-o is not used by c4sim)')
+if start % PAGE: refuse('The start address is not page-aligned !')
+rcf = os.path.join(CASE, 'ctl', 'nandwrite_rc')
+if os.path.exists(rcf): sys.exit(int(open(rcf).read().strip() or 1))
+size = os.path.getsize(dev)
+if img == '-':
+    if iskip: refuse('seeking stdin not supported')
+    data = sys.stdin.buffer.read()          # on stdin --input-size is only a flag (:345): the real tool reads to EOF
+else:
+    raw = open(img, 'rb').read()
+    data = raw[iskip:iskip + isize] if isize else raw[iskip:]
+if len(data) % PAGE:
+    if not pad: refuse('Input file is not page-aligned. Use the padding option.')
+    data += b'\xff' * (-len(data) % PAGE)
+if (len(data) // PAGE) * PAGE > size - start: refuse('Input file does not fit into device')
+bad = {1501}
+bf = os.path.join(CASE, 'ctl', 'badblocks')
+if os.path.exists(bf): bad = {int(x) for x in open(bf).read().split()}
+off = start; o = 0; blockstart = -1; stdin = (img == '-'); eof = False
+with open(dev, 'r+b') as f:
+    while (not eof if stdin else o < len(data)) and off < size:
+        while blockstart != off // BLK:                 # :424 the new-eraseblock loop (re-checks the block after a skipped one)
+            blockstart = off // BLK
+            sys.stdout.write(f'Writing data to block {blockstart} at offset 0x{blockstart * BLK:x}\n')
+            if blockstart in bad:
+                sys.stderr.write(f'Bad block at {blockstart * BLK:x}, 1 block(s) will be skipped\n'); sys.stderr.flush()
+                off = (blockstart + 1) * BLK
+                if off > size: sys.stderr.write('too many bad blocks, cannot complete request\n'); sys.exit(1)
+        if o >= len(data):                              # :491-499 stdin: the read after the block check returns 0 = EOF
+            eof = True; break
+        page = data[o:o + PAGE]
+        if not (skipff and page == b'\xff' * PAGE):
+            f.seek(off); old = f.read(PAGE)
+            f.seek(off); f.write(bytes(x & y for x, y in zip(old, page)) if old != b'\xff' * PAGE else page)
+        off += PAGE; o += PAGE
+    fl = os.path.join(CASE, 'ctl', 'nw_flip')
+    if os.path.exists(fl):
+        fb = int(open(fl).read().strip()); f.seek(fb * BLK + 4097); c = f.read(1); f.seek(fb * BLK + 4097); f.write(bytes([c[0] ^ 0x01]))
+sys.stdout.flush()
+tf = os.path.join(CASE, 'ctl', 'nw_text')
+if os.path.exists(tf): sys.stderr.write(open(tf).read().rstrip('\n') + '\n')
+if o < len(data): sys.stderr.write('Data was only partially written due to error\n'); sys.exit(1)
+sys.exit(0)
