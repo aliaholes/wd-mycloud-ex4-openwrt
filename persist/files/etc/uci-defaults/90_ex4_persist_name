@@ -1,0 +1,9 @@
+#!/bin/sh
+# 90_ex4_persist_name (EX4 persistent system v1): THE CERT FIX (TOOLING-BUILDLOG RUN 11 "BUG (for v10): the HTTPS cert is
+# CN=(none)"): 95_ex4_webui makes the cert from /proc/sys/kernel/hostname, but S10system sets the name only AFTER the
+# uci-defaults, and the trial's 99 set it later still. This runs first (90 < 95): the configured name (the stored one
+# from ex4data when it is bound; else the default 'ex4') goes into uci AND into the kernel now. Every boot.
+H=$(uci -q get system.@system[0].hostname)
+case "$H" in ''|OpenWrt|'(none)'|ex4-trial) H=ex4; uci -q set system.@system[0].hostname="$H"; uci -q commit system;; esac
+echo "$H" > /proc/sys/kernel/hostname
+exit 0
