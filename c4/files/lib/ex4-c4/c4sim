@@ -1,0 +1,192 @@
+#!/bin/sh
+# c4sim (FINALIZE C4 TEST overlay ONLY, Nov 27 2026; DESIGN-C4.md cfc3ebd6 §3 K3): before persist-v1's ex4-persist (S05) runs, make
+# the nandsim that stands in for mtd3 and load the C4 sim image into it. NEVER in persist-v1 production: this file exists only
+# inside a C4 TEST overlay built by c4/mkc4overlay.py, which the C4 bundles carry (kernel.bin 988b393f = the TRIAL
+# DTB, every real partition read-only).
+#   /lib/ex4-c4/c4sim boot      S03 (/etc/init.d/ex4-c4sim). The order, each step a wall (any failure = REFUSED, no sim; the mapped
+#                               ex4-persist then runs MODE ram, which is loud. AMEND 2 (F2): a refusal used to leave the loaded sim
+#                               behind and the C4 ex4-persist attached it by name anyway (C4b). Now the C4 overlay's MAPPED ex4-persist
+#                               and ex4-markgood attach mtd7 ONLY when /tmp/ex4-c4sim.done exists and /tmp/ex4-c4sim.refused does not;
+#                               .done is written as this file's very last act, so a refusal, a crash or a hang = MODE ram, no attach):
+#     1. THE RO WALL FIRST (gate nit 1): read + log /sys/class/mtd/mtd0..mtd6/flags and /proc/mtd. Unless all seven partitions are
+#        WD's seven (names + sizes) and every flags value is exactly 0x0 (no MTD_WRITEABLE), and no mtd7 exists yet: REFUSED,
+#        before insmod, before anything else.
+#     2. nandsim.ko (md5 pinned below) is not loaded yet; insmod it with C2's parameters (mtd3's geometry, bad block 1501).
+#     3. the sim BY NAME: exactly one MTD named "NAND simulator partition 0"; it must be mtd7 (the mapped ex4-persist and
+#        ex4-markgood are pinned to MTDN=7), /proc/mtd line `mtd7: 0cd00000 00020000 "NAND simulator partition 0"`, flags 0x400,
+#        geometry = mtd3's (writesize 2048, erasesize 131072, oobsize 64, subpagesize 512), bad_blocks 1, sysfs dev = 90:14, and
+#        (AMEND 1) the /dev/mtd7 NODE itself is a char device whose own major:minor (busybox `ls -lnd`) = that sysfs dev, 90:14.
+#     4. the sim is wholly erased (md5 of all 1640 blocks = 1640 x 128 KiB of 0xff): nandwrite never erases.
+#     5. THE TWO RANGES around bad block 1501 (nandwrite -p SKIPS a bad block and SHIFTS what follows: the restore-stock lesson):
+#        range r1 = blocks 0.. (before 1501) from sim-r1.img.gz at offset 0; range r2 (only when the image reaches past 1501) =
+#        blocks 1502.. from sim-r2.img.gz at offset 1502 x 128 KiB. nandwrite -p -k (all-0xff pages skipped: an erased page reads
+#        0xff anyway, and nandsim only spends RAM on pages written). Before each write the SOURCE is md5'd on the box (gunzip -c) and
+#        must = sim.manifest's md5.
+#        AMEND 2 (Nov 27 2026, finding F1 of the C4 session): the bad-block verdict comes from FACTS, not from text. The real
+#        mtd-utils 2.3.0 nandwrite reading stdin checks the NEXT eraseblock for badness BEFORE it reads more input (nandwrite.c
+#        d08d1d61 :424-470 then :473-499: the block check runs at every new block, the EOF read comes after it), so a range that
+#        ends right before bad block 1501 prints "Bad block at bba0000, 1 block(s) will be skipped" although nothing shifted (C4b,
+#        box/C4b.3-sim.txt). So: every "bad block" mention must be one whole "Bad block at <hex>, 1 block(s) will be skipped" line
+#        (else REFUSED: text that cannot be placed); a bad block AT AN OFFSET INSIDE the range written = REFUSED (the data shifted);
+#        one at or past the range's end = the next-block probe, logged, not a refusal.
+#     6. read back each range written (dd over /dev/mtd7, exactly those blocks; mtdchar read = the data area, no OOB): its md5 must
+#        = the source's md5 (and so the manifest's). This read-back, not nandwrite's text, is what proves the range is in place.
+#     7. tries: ubiattach -m 7 -d 3 -O 2048 (mtd-utils 2.3.0's form, proven: C4/receipts/run-c4-ubiforms.txt), mount ubi3:ex4boot
+#        rw, write /lib/ex4-c4/tries the way stage2 does before a jump (echo N > tries; sync; read back), umount, ubidetach -d 3.
+#   /lib/ex4-c4/c4sim status
+# Every line goes to /tmp/ex4-c4sim.log, syslog and the black box (ex4log note). The ONLY device this file writes is /dev/mtd7
+# after step 3 named it the sim; the real mtd0..mtd6 are read-only under the trial DTB and are only READ here (sysfs, /proc/mtd).
+SYS=/sys; PROC=/proc; DEV=/dev; TMPD=/tmp; LIB=/lib/ex4-c4
+INSMOD=/sbin/insmod; NANDWRITE=/lib/ex4-c4/bin/nandwrite; UBIATTACH=/usr/sbin/ubiattach; UBIDETACH=/usr/sbin/ubidetach; EX4LOG=/usr/sbin/ex4log
+ischr() { [ -c "$1" ]; }
+nodedev() { set -- $(ls -lnd "$1" 2>/dev/null); case "${1:-}" in c*) echo "${5%,}:${6:-}";; *) echo "not-a-char-node(${1:-missing})";; esac; }
+SIMNAME="NAND simulator partition 0"; SIMN=7; UBI=3; VID=2048; BLK=131072; BAD=1501; NBLK=1640
+NANDSIM_MD5=60723a02dbcc02b727d1bce8e4414c46                      # K1: k-ud 6.12.112 out-of-tree build (C4-BUILD.md)
+NANDWRITE_MD5=5f628c482416750b715f0a7790f97c3c                    # K2: mtd-utils-2.3.0 build dir, Nov 18 13:12
+ERASED_MD5=8de6e29a25040457c32a41693eb89ffd                       # md5 of 1640 x 131072 bytes of 0xff (computed by the builder)
+PARAMS="first_id_byte=0xec second_id_byte=0xda third_id_byte=0x10 fourth_id_byte=0x95 parts=1640 badblocks=1501"
+LOG=$TMPD/ex4-c4sim.log; MNT=$TMPD/ex4-c4sim-mnt
+
+say() {
+	echo "ex4-c4sim: $*"; echo "$(date '+%F %T') $*" >> $LOG
+	logger -t ex4-c4sim "$*" 2>/dev/null
+	[ -x $EX4LOG ] && $EX4LOG note "c4sim: $*" >/dev/null 2>&1
+	return 0
+}
+refuse() { say "REFUSED: $* (no sim: no /tmp/ex4-c4sim.done, so the C4 ex4-persist runs MODE ram and ex4-markgood never attaches mtd$SIMN)"; : > $TMPD/ex4-c4sim.refused; exit 1; }
+md5f() { m=$(md5sum < "$1" 2>/dev/null); echo "${m%% *}"; }
+md5blocks() {   # $1 = skip (blocks), $2 = count: md5 of that range of /dev/mtd$SIMN
+	m=$(dd if=$DEV/mtd$SIMN bs=$BLK skip=$1 count=$2 2>/dev/null | md5sum); echo "${m%% *}"
+}
+srcmd5() {      # $1 = a sim-rN.img.gz in $LIB: md5 of its gunzipped bytes (the source of a range)
+	m=$(gunzip -c $LIB/$1 2>/dev/null | md5sum); echo "${m%% *}"
+}
+bbfacts() {     # AMEND 2 (F1): $1 = nandwrite's output, $2 = start block, $3 = count: place every bad-block report, refuse one inside
+	lo=$(($2 * BLK)); hi=$((($2 + $3) * BLK)); BB=$TMPD/ex4-c4sim.bb.$2
+	nall=$(grep -oi 'bad block' $1 | wc -l); nall=$((nall + 0))
+	grep -o 'Bad block at [0-9a-f]\{1,8\}, 1 block(s) will be skipped' $1 | sed 's/^Bad block at //; s/,.*$//' > $BB
+	nok=$(wc -l < $BB); nok=$((nok + 0))
+	[ $nall = $nok ] || refuse "nandwrite printed bad-block text that is not one whole 'Bad block at <hex>, 1 block(s) will be skipped' line ($nall mention(s), $nok whole line(s)) for blocks $2..$(($2 + $3 - 1)): it cannot be placed, the data may have shifted"
+	while read -r h; do
+		o=$((0x$h))
+		[ $o -ge $lo ] && [ $o -lt $hi ] && refuse "nandwrite met a bad block inside blocks $2..$(($2 + $3 - 1)) (block $((o / BLK)) at 0x$h): the data shifted"
+		if [ $o -ge $hi ]; then say "nandwrite probed block $((o / BLK)) (0x$h, bad) AFTER the range's last block $(($2 + $3 - 1)): the next-block check before its EOF read; nothing of blocks $2..$(($2 + $3 - 1)) shifted (the read-back decides)"
+		else say "nandwrite reported block $((o / BLK)) (0x$h, bad) BEFORE the range's first block $2: not written by this call (the read-back decides)"; fi
+	done < $BB
+	return 0
+}
+
+ro_wall() {
+	bad=
+	for i in 0 1 2 3 4 5 6; do
+		v=$(cat $SYS/class/mtd/mtd$i/flags 2>/dev/null); n=$(cat $SYS/class/mtd/mtd$i/name 2>/dev/null)
+		say "RO wall: mtd$i '${n:-?}' flags ${v:-unreadable}"
+		[ "$v" = 0x0 ] || bad="$bad mtd$i=${v:-unreadable}"
+	done
+	[ -z "$bad" ] || refuse "RO wall: a real partition is not read-only (flags:$bad): this is not the trial DTB"
+	want='mtd0: 00100000 00020000 "u-boot"
+mtd1: 00500000 00020000 "uImage"
+mtd2: 00500000 00020000 "ramdisk"
+mtd3: 0cd00000 00020000 "image"
+mtd4: 00f00000 00020000 "rescue firmware"
+mtd5: 01400000 00020000 "config"
+mtd6: 00500000 00020000 "reserve"'
+	[ "$(grep '^mtd' $PROC/mtd)" = "$want" ] || refuse "RO wall: /proc/mtd is not WD's seven partitions and nothing else: $(grep '^mtd' $PROC/mtd | tr '\n' ';')"
+	say "RO wall passed: mtd0..mtd6 = WD's seven partitions, every flags value 0x0 (read-only), no mtd7 yet"
+}
+
+simdev() {      # sets nothing; refuses unless the sim is exactly mtd$SIMN with the right name, line, flags, geometry, node
+	n=
+	for d in $SYS/class/mtd/mtd*; do
+		k=${d##*/mtd}; case "$k" in ''|*[!0-9]*) continue;; esac
+		[ "$(cat $d/name 2>/dev/null)" = "$SIMNAME" ] || continue
+		[ -z "$n" ] || refuse "two MTDs are named '$SIMNAME'"
+		n=$k
+	done
+	[ -n "$n" ] || refuse "no MTD named '$SIMNAME' after insmod"
+	[ "$n" = $SIMN ] || refuse "the sim is mtd$n, not mtd$SIMN (the C4 ex4-persist/ex4-markgood copies are pinned to mtd$SIMN)"
+	grep -q "^mtd$SIMN: 0cd00000 00020000 \"$SIMNAME\"\$" $PROC/mtd || refuse "/proc/mtd line of mtd$SIMN is not: mtd$SIMN: 0cd00000 00020000 \"$SIMNAME\""
+	S=$SYS/class/mtd/mtd$SIMN
+	[ "$(cat $S/flags)" = 0x400 ] || refuse "mtd$SIMN flags $(cat $S/flags), want 0x400 (writable)"
+	[ "$(cat $S/writesize)/$(cat $S/erasesize)/$(cat $S/oobsize)/$(cat $S/subpagesize)/$(cat $S/size)" = "2048/131072/64/512/214958080" ] \
+		|| refuse "mtd$SIMN geometry $(cat $S/writesize)/$(cat $S/erasesize)/$(cat $S/oobsize)/$(cat $S/subpagesize)/$(cat $S/size) is not mtd3's 2048/131072/64/512/214958080"
+	[ "$(cat $S/bad_blocks 2>/dev/null)" = 1 ] || refuse "mtd$SIMN has $(cat $S/bad_blocks 2>/dev/null) bad block(s), want exactly 1 (block $BAD)"
+	w=0; while ! ischr $DEV/mtd$SIMN && [ $w -lt 10 ]; do sleep 1; w=$((w + 1)); done
+	ischr $DEV/mtd$SIMN || refuse "$DEV/mtd$SIMN is not a char device (waited $w s for the hotplug node)"
+	[ "$(cat $S/dev)" = "90:$((SIMN * 2))" ] || refuse "mtd$SIMN sysfs dev $(cat $S/dev), want 90:$((SIMN * 2))"
+	nd=$(nodedev $DEV/mtd$SIMN)
+	[ "$nd" = "$(cat $S/dev)" ] || refuse "$DEV/mtd$SIMN node is $nd, not the sim's sysfs dev $(cat $S/dev) (a wrong or stale node: never written through)"
+	say "sim = mtd$SIMN '$SIMNAME' (by name; flags 0x400; 2048/131072/64/512, 1640 blocks, 1 bad; $DEV/mtd$SIMN after $w s, node $nd = sysfs dev)"
+}
+
+manifest() {    # sim.manifest: "r1 FILE START COUNT MD5" [+ "r2 FILE START COUNT MD5"], each field checked
+	M=$LIB/sim.manifest; [ -s $M ] || refuse "no $M"
+	R1=; R2=
+	while read -r tag f st cnt m x; do
+		case "$tag" in r1|r2) ;; '') continue;; *) refuse "sim.manifest: unknown line '$tag'";; esac
+		[ -z "$x" ] || refuse "sim.manifest: extra field on the $tag line"
+		case "$f" in sim-$tag.img.gz) ;; *) refuse "sim.manifest: $tag file '$f' is not sim-$tag.img.gz";; esac
+		case "$st$cnt" in ''|*[!0-9]*) refuse "sim.manifest: $tag start/count not numbers";; esac
+		echo "$m" | grep -q '^[0-9a-f]\{32\}$' || refuse "sim.manifest: $tag md5 is not 32 hex digits"
+		[ -s $LIB/$f ] || refuse "sim.manifest names $f, which is not in $LIB"
+		[ "$cnt" -ge 1 ] || refuse "sim.manifest: $tag count 0"
+		[ $tag = r1 ] && { [ "$st" = 0 ] && [ $((st + cnt)) -le $BAD ] || refuse "sim.manifest: r1 must start at 0 and end before block $BAD"; R1="$f $st $cnt $m"; }
+		[ $tag = r2 ] && { [ "$st" = $((BAD + 1)) ] && [ $((st + cnt)) -le $NBLK ] || refuse "sim.manifest: r2 must start at block $((BAD + 1)) and end by $NBLK"; R2="$f $st $cnt $m"; }
+	done < $M
+	[ -n "$R1" ] || refuse "sim.manifest has no r1 line"
+	T=$(cat $LIB/tries 2>/dev/null); case "$T" in 1|2) ;; *) refuse "$LIB/tries is '$T' (C4 writes 1 or 2 only)";; esac
+}
+
+writerange() {  # $1 = file, $2 = start block, $3 = count, $4 = md5 (sim.manifest's)
+	off=$(($2 * BLK))
+	src=$(srcmd5 $1)
+	[ "$src" = "$4" ] || refuse "the source $1 gunzips to md5 ${src:-unreadable}, not the manifest's $4 (nothing written)"
+	say "source $1 = $4 (gunzip -c | md5sum, on the box)"
+	say "+ gunzip -c $LIB/$1 | $NANDWRITE -p -k -s $off $DEV/mtd$SIMN -   (blocks $2..$(($2 + $3 - 1)))"
+	gunzip -c $LIB/$1 | $NANDWRITE -p -k -s $off $DEV/mtd$SIMN - > $TMPD/ex4-c4sim.nw.$2 2>&1; rc=$?
+	sed 's/^/  nandwrite: /' $TMPD/ex4-c4sim.nw.$2 >> $LOG
+	[ $rc = 0 ] || refuse "nandwrite rc $rc for blocks $2.. (see $LOG)"
+	bbfacts $TMPD/ex4-c4sim.nw.$2 $2 $3
+	got=$(md5blocks $2 $3)
+	[ "$got" = "$src" ] || refuse "read-back of blocks $2..$(($2 + $3 - 1)) = $got, want $src (the source; = the manifest's)"
+	say "wrote + read back blocks $2..$(($2 + $3 - 1)) = $4 (= the source)"
+}
+
+cmd_boot() {
+	: > $LOG; rm -f $TMPD/ex4-c4sim.refused $TMPD/ex4-c4sim.done
+	say "C4 TEST sim (never in production): RO wall first"
+	ro_wall
+	[ "$(md5f $LIB/nandsim.ko)" = $NANDSIM_MD5 ] || refuse "$LIB/nandsim.ko is not K1 ($NANDSIM_MD5)"
+	[ "$(md5f $NANDWRITE)" = $NANDWRITE_MD5 ] || refuse "$NANDWRITE is not K2's nandwrite ($NANDWRITE_MD5)"
+	manifest
+	[ -e $SYS/module/nandsim ] && refuse "nandsim is already loaded (C4 wants a fresh, erased sim)"
+	[ -e $SYS/class/ubi/ubi$UBI ] && refuse "ubi$UBI already exists"
+	say "+ $INSMOD $LIB/nandsim.ko $PARAMS"
+	$INSMOD $LIB/nandsim.ko $PARAMS >> $LOG 2>&1 || refuse "insmod nandsim rc $?"
+	simdev
+	e=$(md5blocks 0 $NBLK)
+	[ "$e" = $ERASED_MD5 ] || refuse "the fresh sim is not wholly erased (md5 $e, want $ERASED_MD5)"
+	say "fresh sim wholly erased (md5 of 1640 blocks = $ERASED_MD5)"
+	set -- $R1; writerange "$@"
+	if [ -n "$R2" ]; then set -- $R2; writerange "$@"; else say "no r2 (the image ends before block $BAD)"; fi
+	say "+ $UBIATTACH -m $SIMN -d $UBI -O $VID"
+	$UBIATTACH -m $SIMN -d $UBI -O $VID >> $LOG 2>&1 || refuse "ubiattach -m $SIMN -d $UBI -O $VID failed (dmesg)"
+	[ "$(cat $SYS/class/ubi/ubi$UBI/mtd_num 2>/dev/null)" = $SIMN ] || refuse "ubi$UBI is not on mtd$SIMN after the attach"
+	w=0; while ! ischr $DEV/ubi${UBI}_0 && [ $w -lt 10 ]; do sleep 1; w=$((w + 1)); done
+	mkdir -p $MNT
+	mount -t ubifs ubi$UBI:ex4boot $MNT >> $LOG 2>&1 || { $UBIDETACH -d $UBI >> $LOG 2>&1; refuse "mount ubi$UBI:ex4boot rw failed"; }
+	was=$(cat $MNT/tries 2>/dev/null)
+	echo "$T" > $MNT/tries; sync
+	now=$(cat $MNT/tries 2>/dev/null)
+	umount $MNT || say "umount $MNT failed"
+	$UBIDETACH -d $UBI >> $LOG 2>&1 || say "ubidetach -d $UBI rc $? (ex4-persist will find ubi$UBI attached to mtd$SIMN and use it)"
+	[ "$now" = "$T" ] || refuse "tries reads '$now' after writing '$T'"
+	: > $TMPD/ex4-c4sim.done
+	say "DONE: sim mtd$SIMN holds the C4 image ($(cut -d' ' -f1,3,4 $LIB/sim.manifest | tr '\n' ' ')), ex4boot tries ${was:-?} -> $T (as stage2 writes before a jump); ex4-persist (S05) attaches it"
+}
+
+case "${1:-}" in
+boot) cmd_boot;;
+status) cat $LOG 2>/dev/null; ls $TMPD/ex4-c4sim.done $TMPD/ex4-c4sim.refused 2>/dev/null;;
+*) echo "usage: c4sim boot | status" >&2; exit 64;;
+esac
