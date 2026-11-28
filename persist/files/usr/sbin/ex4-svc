@@ -1,0 +1,191 @@
+#!/bin/sh
+# ex4-svc (EX4 persistent system v1, FINALIZE-PLAN B2, Nov 26 2026): SERVICE MODE, the backup NAS's every-day state.
+#   ex4-svc start                 THE RECOVERY WALL, then md1 read-write, the tuned knobs, ext4 rw at /mnt/md1, NFSv3, smartd
+#   ex4-svc stop [--for-reboot]   NFS down, smartd down, sync, umount, mdadm --stop. rc 0 = SAFE, 3 = look at the array
+#   ex4-svc check                 the wall only (reads; assembles nothing)
+#   ex4-svc status
+# Settings: /etc/config/ex4svc (persisted). enabled=0 = nothing is assembled at boot.
+#
+# THE RECOVERY WALL = ex4-md-ro's check() (build/v9/files/usr/sbin/ex4-md-ro, c2da39e0), read by mdadm --examine only,
+# with THREE named differences and nothing else:
+#   1. no `blockdev --setro` on the members (this is the read-write path; ex4-md-ro's check sets them ro first);
+#   2. superblock 1.0 (today's array) OR 1.2 (E1's re-created array), Feature Map 0x0 / 0x1 (bitmap) / 0x8 / 0x9
+#      (bad-block log, E1): anything else (0x2 = a member being REBUILT, 0x4 = reshape, ...) is REFUSED, as in ex4-md-ro;
+#   3. State 'active' (a dirty stop) is taken ONLY when the Feature Map has the write-intent bitmap bit (0x1): md then
+#      resyncs just the bitmap's dirty regions. Without a bitmap a dirty array is REFUSED (a full resync = a person's call).
+# Kept from ex4-md-ro exactly: exactly 4 SATA partition-2 members (never USB), raid5, 64K chunk, left-symmetric, 4 raid
+# devices, one Array UUID, the same Events on all four, Array State AAAA on every member, and NO Recovery Offset /
+# Resync Offset / Reshape pos / Delta Devices / New Layout / New Chunksize / New Offset line (an unfinished rebuild,
+# resync or reshape stays REFUSED: a person looks).
+# THE KNOBS (the bench arms RUN 13-20 measured): stripe_cache_size 1024, skip_copy 1 (after the array is rw, BEFORE the
+# ext4 mount: stable pages are inherited at mount), read_ahead_kb 1024 on md1 AND each member, dirty_bytes 64 MiB /
+# dirty_background_bytes 16 MiB (the bench's safety pair for a 512 MiB box). Each written value is read back.
+# ext4: the bench's options exactly (rw,noatime,data=ordered,barrier=1,errors=remount-ro,noinit_itable,stripe=128).
+# NFS: v3 only, TCP only (rpc.nfsd -N 4 -U), statd 32778/32779, mountd 32780 (the bench's ports), exports = /etc/exports
+# as `ex4-apply sync` writes it from /etc/config/ex4 (the web interface). No export line = NFS is not started.
+# THE v9.9 NFSD PREP, built in: right before EVERY rpc.nfsd: sync + `echo 3 > /proc/sys/vm/drop_caches` (RUN 20: nfsd
+# start ENOMEM fixed 8/8 with it); then up to 30 s for nfsd REALLY up (threads > 0 AND a 2049 listener); one retry.
+# rsync: over ssh only (dropbear, key-only); no rsync daemon. SMB: OFF (samba4 / ksmbd are not started, never enabled here).
+# While md1 is read-write /tmp/ex4-rw-active exists, so ex4fan's built-in fail-safe runs `ex4-rwbench stop --for-reboot`
+# (= this file's stop, through the shim /usr/sbin/ex4-rwbench) before its reboot.
+SYS=/sys; PROC=/proc; DEV=/dev; ETC=/etc; TMPD=/tmp; MNT=/mnt/md1; MD=/dev/md1; MDN=md1
+VMP=/proc/sys/vm; NFSD=/proc/fs/nfsd; VLN=/var/lib/nfs; NFSD_WAIT=30
+ACTIVE=$TMPD/ex4-rw-active; LOG=$TMPD/ex4-svc.log; LOCK=$TMPD/ex4-svc.lock; OUT=$TMPD/ex4-svc-examine.txt
+SC=1024; RA=1024; SKIP=1; NT=8; STRIPE=128; DIRTY=67108864; DIRTYBG=16777216
+
+say() {
+	echo "ex4-svc: $*"; echo "$(date '+%F %T') $*" >> $LOG
+	logger -t ex4-svc "$*" 2>/dev/null
+	[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "svc: $*" >/dev/null 2>&1
+	return 0
+}
+die() { say "REFUSED: $*"; exit 1; }
+uget() { v=$(uci -q get ex4svc.main.$1 2>/dev/null); echo "${v:-$2}"; }
+num() { case "$1" in ''|*[!0-9]*) return 1;; esac; return 0; }
+
+members() {       # ex4-md-ro's: partition 2 of every disk behind a SATA (ata) host, never USB
+	for b in $SYS/block/sd?; do
+		d=${b##*/}
+		readlink -f "$b/device" | grep -q '/ata[0-9]' || continue
+		[ -b "$DEV/${d}2" ] && echo "$DEV/${d}2"
+	done
+}
+field() { awk -F' : ' -v k="$2" '{ g = $1; sub(/^ +/, "", g) } g == k { v = $2; sub(/ +$/, "", v); print v; exit }' "$1"; }
+
+wall() {
+	grep -q "^$MDN " $PROC/mdstat 2>/dev/null && die "$MDN already exists ($(grep "^$MDN " $PROC/mdstat))"
+	set -- $(members)
+	[ $# = 4 ] || die "found $# SATA partition-2 devices ($*), want 4"
+	: > "$OUT"; UUID0=; EV0=; DIRTYN=0
+	for p in "$@"; do
+		T=$TMPD/ex4-svc-examine.$$
+		mdadm --examine "$p" > "$T" 2>&1 || { cat "$T" >> "$OUT"; rm -f "$T"; die "mdadm --examine $p failed (see $OUT)"; }
+		{ echo "=== $p"; cat "$T"; } >> "$OUT"
+		V=$(field "$T" Version); U=$(field "$T" 'Array UUID'); L=$(field "$T" 'Raid Level'); C=$(field "$T" 'Chunk Size')
+		Y=$(field "$T" Layout); S=$(field "$T" State); E=$(field "$T" Events); N=$(field "$T" 'Raid Devices')
+		F=$(field "$T" 'Feature Map'); A=$(field "$T" 'Array State')
+		X=$(grep -E '^ *(Recovery Offset|Resync Offset|Reshape pos|Delta Devices|New Layout|New Chunksize|New Offset)' "$T" | head -n 1 | sed 's/^ *//')
+		rm -f "$T"
+		[ -z "$X" ] || die "$p: its superblock records an unfinished rebuild / resync / reshape ($X): a person looks"
+		case "$F" in 0x0|0x1|0x8|0x9) ;; *) die "$p: Feature Map '$F' (0x2 = a member is being REBUILT, 0x4 = a reshape, ...): a person looks, even though State says '$S'";; esac
+		case "$A" in AAAA|'AAAA '*) ;; *) die "$p: Array State '$A', want AAAA (all four active, none missing or being replaced)";; esac
+		case "$V" in 1.0|1.2) ;; *) die "$p: superblock version '$V', want 1.0 or 1.2";; esac
+		[ "$L" = raid5 ] || die "$p: level '$L', want raid5"
+		[ "$C" = 64K ] || die "$p: chunk '$C', want 64K"
+		[ "$Y" = left-symmetric ] || die "$p: layout '$Y', want left-symmetric"
+		[ "$N" = 4 ] || die "$p: raid devices '$N', want 4"
+		case "$S" in
+		clean|'clean ') ;;
+		active|'active ') case "$F" in 0x1|0x9) DIRTYN=$((DIRTYN + 1));; *) die "$p: state '$S' (a dirty stop) and no write-intent bitmap (Feature Map '$F'): a full resync is a person's call";; esac;;
+		*) die "$p: state '$S', want clean (or active with a bitmap)";;
+		esac
+		[ -n "$U" ] || die "$p: no Array UUID"
+		[ -z "$UUID0" ] && UUID0=$U && EV0=$E
+		[ "$U" = "$UUID0" ] || die "$p: array UUID $U differs from $UUID0"
+		[ "$E" = "$EV0" ] || die "$p: events $E differ from $EV0 (members out of step)"
+	done
+	MEMBERS="$*"
+	say "wall passed: 4 members ($*), array $UUID0, events $EV0$( [ $DIRTYN -gt 0 ] && echo ", DIRTY on $DIRTYN member(s): md resyncs the bitmap's regions" ) (examine: $OUT)"
+}
+
+wr() {            # $1 = file, $2 = value: write, read back
+	echo "$2" > "$1" 2>/dev/null || { say "could not write $2 into $1"; return 1; }
+	[ "$(cat "$1" 2>/dev/null)" = "$2" ] || { say "$1 reads '$(cat "$1" 2>/dev/null)', not $2"; return 1; }
+	return 0
+}
+mqueue() { d=${1##*/}; d=${d%%[0-9]*}; echo "$SYS/block/$d/queue"; }
+listening() {     # $1 = TCP port, LISTEN anywhere (tcp or tcp6)
+	h=$(printf '%04X' "$1")
+	for f in $PROC/net/tcp $PROC/net/tcp6; do
+		[ -r $f ] && awk -v h="$h" '$4 == "0A" { split($2, a, ":"); if (toupper(a[2]) == h) f = 1 } END { exit f ? 0 : 1 }' $f && return 0
+	done
+	return 1
+}
+nfs_threads() { t=$(cat $NFSD/threads 2>/dev/null); echo "${t:-0}"; }
+nfsd_prep() { a=$(awk '$1 == "MemFree:" { print $2 }' $PROC/meminfo); sync; echo 3 > $VMP/drop_caches 2>/dev/null && say "nfsd prep: sync + drop_caches (MemFree $a -> $(awk '$1 == "MemFree:" { print $2 }' $PROC/meminfo) kB)" || say "nfsd prep: drop_caches NOT written; rpc.nfsd started anyway"; }
+nfsd_up() { i=0; while [ $i -le $NFSD_WAIT ]; do [ "$(nfs_threads)" -gt 0 ] 2>/dev/null && listening 2049 && return 0; sleep 1; i=$((i + 1)); done; return 1; }
+
+start_nfs() {
+	[ -x /usr/libexec/ex4/ex4-apply ] && /usr/libexec/ex4/ex4-apply sync >> $LOG 2>&1
+	grep -qE '^[[:space:]]*/' $ETC/exports 2>/dev/null || { say "nfs: /etc/exports has no export line (set exports in the web interface): NFS not started"; return 0; }
+	for t in rpcbind rpc.statd rpc.mountd rpc.nfsd exportfs; do command -v $t >/dev/null || { say "nfs: no $t in this image: NFS not started"; return 1; }; done
+	[ -e $SYS/module/nfsd ] || modprobe nfsd 2>/dev/null
+	grep -q " $NFSD nfsd " $PROC/mounts || mount -t nfsd nfsd $NFSD || { say "nfs: cannot mount $NFSD"; return 1; }
+	mkdir -p $VLN/sm; touch $VLN/rmtab $VLN/etab $VLN/xtab
+	[ -d $VLN/v4recovery ] || { mkdir -p $VLN/v4recovery && chmod 700 $VLN/v4recovery; }
+	rpcbind || { say "nfs: rpcbind did not start"; return 1; }
+	rpc.statd -p 32778 -o 32779 || { say "nfs: rpc.statd did not start"; return 1; }
+	rpc.mountd -p 32780 || { say "nfs: rpc.mountd did not start"; return 1; }
+	exportfs -ra >> $LOG 2>&1 || { say "nfs: exportfs -ra failed"; return 1; }
+	for try in 1 2; do
+		nfsd_prep
+		rpc.nfsd -N 4 -U "$NT" >> $LOG 2>&1; r=$?
+		if nfsd_up; then say "nfs: NFSv3 up (try $try, rpc.nfsd rc $r, $(nfs_threads) threads, 2049 listening; exports: $(grep -cE '^[[:space:]]*/' $ETC/exports))"; return 0; fi
+		say "nfs: nfsd not up after $NFSD_WAIT s (try $try, rpc.nfsd rc $r)"; rpc.nfsd 0 2>/dev/null
+	done
+	return 1
+}
+stop_nfs() {
+	if grep -q " $NFSD nfsd " $PROC/mounts; then rpc.nfsd 0 2>/dev/null; exportfs -au 2>/dev/null; fi
+	killall rpc.mountd rpc.statd rpcbind 2>/dev/null
+	i=0; while [ $i -lt 10 ] && pidof rpc.mountd rpc.statd rpcbind >/dev/null 2>&1; do sleep 1; i=$((i + 1)); done
+}
+
+cmd_start() {
+	[ "$(uget enabled 1)" = 1 ] || { say "ex4svc.main.enabled is not 1: md1 left alone"; return 0; }
+	num "$(uget stripe_cache $SC)" && SC=$(uget stripe_cache $SC); num "$(uget readahead_kb $RA)" && RA=$(uget readahead_kb $RA)
+	num "$(uget nfs_threads $NT)" && NT=$(uget nfs_threads $NT)
+	[ "$SC" -ge 256 ] && [ "$SC" -le 4096 ] || die "stripe_cache $SC outside 256..4096"
+	[ "$RA" -ge 128 ] && [ "$RA" -le 8192 ] || die "readahead_kb $RA outside 128..8192"
+	[ "$NT" -ge 1 ] && [ "$NT" -le 16 ] || die "nfs_threads $NT outside 1..16"
+	for s in samba4 ksmbd; do [ -x $ETC/init.d/$s ] && $ETC/init.d/$s enabled 2>/dev/null && say "WARNING: $s is enabled (SMB is off by design): not started by ex4-svc"; done
+	i=0; while [ $i -lt 120 ]; do [ "$(ls -d $SYS/block/sd? 2>/dev/null | wc -l)" -ge 4 ] && break; sleep 2; i=$((i + 2)); done
+	wall
+	set -- $MEMBERS
+	: > $ACTIVE
+	mdadm --assemble "$MD" --uuid="$UUID0" "$@" >> $LOG 2>&1 || { rm -f $ACTIVE; die "mdadm --assemble failed (see $LOG)"; }
+	M=$(grep -A3 "^$MDN " $PROC/mdstat)
+	echo "$M" | grep -q '\[4/4\] \[UUUU\]' || { mdadm --stop "$MD"; rm -f $ACTIVE; die "$MD is not [4/4] [UUUU] after assembly: stopped ($M)"; }
+	echo "$M" | grep -q '(read-only)' && { mdadm --readwrite "$MD" >> $LOG 2>&1 || { mdadm --stop "$MD"; rm -f $ACTIVE; die "mdadm --readwrite failed: stopped"; }; }
+	wr $VMP/dirty_bytes $DIRTY; wr $VMP/dirty_background_bytes $DIRTYBG
+	wr $SYS/block/$MDN/md/stripe_cache_size "$SC"
+	wr $SYS/block/$MDN/queue/read_ahead_kb "$RA"
+	for p in "$@"; do wr "$(mqueue "$p")/read_ahead_kb" "$RA"; done
+	wr $SYS/block/$MDN/md/skip_copy "$SKIP"        # before the ext4 mount (stable pages are taken at mount)
+	mkdir -p $MNT
+	grep -q " $MNT " $PROC/mounts && { say "$MNT is already mounted (stock's tmpfs?): stopping"; mdadm --stop "$MD"; rm -f $ACTIVE; exit 1; }
+	mount -t ext4 -o "rw,noatime,data=ordered,barrier=1,errors=remount-ro,noinit_itable,stripe=$STRIPE" "$MD" "$MNT" >> $LOG 2>&1 \
+		|| { mdadm --stop "$MD"; rm -f $ACTIVE; die "ext4 rw mount failed: md1 stopped (dmesg: $(dmesg | grep -i ext4 | tail -n 1))"; }
+	awk -v m="$MNT" '$2 == m { split($4, o, ","); if (o[1] != "rw") exit 1; f = 1 } END { exit f ? 0 : 1 }' $PROC/mounts || { umount $MNT; mdadm --stop "$MD"; rm -f $ACTIVE; die "$MNT is not rw after the mount: stopped"; }
+	say "md1 read-write ($(sed -n "s/^$MDN : //p" $PROC/mdstat)), ext4 rw at $MNT; stripe_cache $(cat $SYS/block/$MDN/md/stripe_cache_size) skip_copy $(cat $SYS/block/$MDN/md/skip_copy) read_ahead_kb $(cat $SYS/block/$MDN/queue/read_ahead_kb); sync_action $(cat $SYS/block/$MDN/md/sync_action)"
+	[ "$(uget nfs 1)" = 1 ] && start_nfs
+	[ -x $ETC/init.d/smartd ] && { $ETC/init.d/smartd start >> $LOG 2>&1 && say "smartd started (/etc/smartd.conf: alerts -> /usr/libexec/ex4/smart-alert)"; }
+	return 0
+}
+
+cmd_stop() {
+	stop_nfs
+	[ -x $ETC/init.d/smartd ] && $ETC/init.d/smartd stop >/dev/null 2>&1
+	sync
+	if grep -q " $MNT " $PROC/mounts; then
+		umount $MNT 2>/dev/null || { sleep 2; sync; umount $MNT 2>/dev/null; } || mount -o remount,ro $MNT 2>/dev/null
+	fi
+	if grep -q "^$MDN " $PROC/mdstat 2>/dev/null; then
+		if grep -q " $MNT " $PROC/mounts; then
+			say "stop: $MNT is still mounted (busy; remounted ro if it could be): md1 left running, $(cat $SYS/block/$MDN/md/array_state 2>/dev/null)"
+			return 3
+		fi
+		mdadm --stop "$MD" >> $LOG 2>&1 || { say "stop: mdadm --stop failed ($(cat $SYS/block/$MDN/md/array_state 2>/dev/null))"; return 3; }
+	fi
+	rm -f $ACTIVE
+	say "stop: SAFE (NFS down, $MNT unmounted, md1 stopped)"
+	return 0
+}
+
+case "${1:-}" in
+start) exec 9> $LOCK; flock 9; cmd_start;;
+stop) exec 9> $LOCK; flock -w 600 9; cmd_stop;;
+check) wall;;
+status) cat $PROC/mdstat 2>/dev/null; grep " $MNT " $PROC/mounts; echo "nfsd threads $(nfs_threads)"; tail -n 15 $LOG 2>/dev/null;;
+*) echo "usage: ex4-svc start | stop [--for-reboot] | check | status" >&2; exit 64;;
+esac
