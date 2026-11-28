@@ -1,0 +1,163 @@
+#!/bin/sh
+# ex4-persist (EX4 persistent system v1, FINALIZE-PLAN B2, Nov 26 2026): the box's settings on its own flash.
+# mtd3 ("image", the ONE writable partition in the install DTB) is UBI with two UBIFS volumes: ex4boot (the kernel set
+# stage2 boots, + `tries`) and ex4data (this file's store). Under 6.12 the UBI is attached as ubi3 (the number stage2.sh
+# uses under WD's kernel) and ex4data is mounted at /ex4data for the whole run.
+#
+# WHAT PERSISTS (an allow-list, nothing else): /etc/config/* (bind-mounted live from /ex4data/etc/config: every
+# `uci commit` lands on flash), the dropbear HOST keys (never authorized_keys: the image's key is the only key), the
+# HTTPS cert (/etc/uhttpd.crt + .key + /etc/ex4/cert.info), /etc/ex4/smtp-pass, /etc/ups-watch/*. Users, shares and
+# exports are regenerated from /etc/config/ex4 by `ex4-apply sync` (ex4-svc start).
+#
+#   ex4-persist boot     S05 (before S10boot runs uci-defaults): attach, read tries, mount ex4data, restore + bind
+#   ex4-persist seed     S97: FIRST boot only (ex4data empty): copy the defaults the boot made into ex4data, then bind
+#   ex4-persist save     cron (15 min), K85, after a cert remake: the copied items, only when they changed
+#   ex4-persist stop     K85: save, umount ex4data, ubidetach
+#   ex4-persist status
+#
+# MODES (in /tmp/ex4-persist.state): persist (seeded store restored + bound) · first (empty store: defaults, seeded at
+# S97) · safe (tries >= 2: the last boot never became reachable, so THIS boot ignores the stored /etc/config and runs
+# the image defaults (DHCP, key-only ssh), nothing is written to the store; the stored config is left untouched for a
+# person to fix) · ram (no UBI / no ex4data: image defaults, nothing persists; LOUD).
+# A failure here never stops the boot: the worst case is the image defaults, which is how every RAM trial booted.
+SYS=/sys; PROC=/proc; DEV=/dev; ETC=/etc; TMPD=/tmp; DATA=/ex4data
+UBI=3; MTDN=3; VID=2048; SAFE_AT=2
+ST=$TMPD/ex4-persist.state; LOG=$TMPD/ex4-persist.log; RO=$TMPD/ex4boot-ro
+S=$DATA/etc/ex4-persist
+
+say() {
+	echo "ex4-persist: $*"; echo "$(date '+%F %T') $*" >> $LOG
+	logger -t ex4-persist "$*" 2>/dev/null
+	[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "persist: $*" >/dev/null 2>&1
+	return 0
+}
+st_set() { echo "$1=$2" >> $ST; }
+st_get() { sed -n "s/^$1=//p" $ST 2>/dev/null | tail -n 1; }
+mounted() { grep -q " $1 " $PROC/mounts 2>/dev/null; }
+
+attach() {      # ubi3 on mtd3 "image", VID header at 2048 (the image's own geometry, ubinize -O 2048)
+	grep -q "^mtd$MTDN: [0-9a-f]* [0-9a-f]* \"image\"\$" $PROC/mtd 2>/dev/null || { say "mtd$MTDN is not \"image\" in /proc/mtd: no persistence"; return 1; }
+	if [ -e $SYS/class/ubi/ubi$UBI/mtd_num ]; then
+		[ "$(cat $SYS/class/ubi/ubi$UBI/mtd_num)" = $MTDN ] && return 0
+		say "ubi$UBI is attached to mtd$(cat $SYS/class/ubi/ubi$UBI/mtd_num), not mtd$MTDN: no persistence"; return 1
+	fi
+	ubiattach -m $MTDN -d $UBI -O $VID >> $LOG 2>&1 || { say "ubiattach -m $MTDN -d $UBI -O $VID failed (see $LOG)"; return 1; }
+	i=0; while [ ! -e $DEV/ubi${UBI}_1 ] && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
+	return 0
+}
+
+read_tries() {  # the attempt number stage2 recorded for THIS boot (1, 2, 3); a read failure counts as 0
+	mkdir -p $RO
+	if mount -t ubifs -o ro ubi$UBI:ex4boot $RO >> $LOG 2>&1; then
+		t=$(cat $RO/tries 2>/dev/null); umount $RO 2>/dev/null
+	else t=; say "ex4boot did not mount read-only (tries unknown, taken as 0)"; fi
+	case "$t" in ''|*[!0-9]*) t=0;; ????*) t=999;; esac
+	echo "$t"
+}
+
+restore() {
+	C=$DATA/etc/config
+	[ -d $C ] || { say "the store says seeded but has no etc/config: image defaults this boot"; return 1; }
+	for f in $ETC/config/*; do      # a config file the image has and the store does not (a new package): copied in
+		[ -f "$f" ] || continue; n=${f##*/}
+		[ -e "$C/$n" ] || { cp -p "$f" "$C/$n" && say "new config file from the image: $n"; }
+	done
+	mount -o bind $C $ETC/config || { say "bind of $C onto $ETC/config failed: image defaults this boot"; return 1; }
+	for k in ed25519 ecdsa rsa; do
+		f=$DATA/etc/dropbear/dropbear_${k}_host_key
+		[ -s $f ] && cp $f $ETC/dropbear/ && chmod 600 $ETC/dropbear/dropbear_${k}_host_key
+	done
+	[ -s $DATA/etc/uhttpd.crt ] && [ -s $DATA/etc/uhttpd.key ] && cp $DATA/etc/uhttpd.crt $DATA/etc/uhttpd.key $ETC/ && chmod 600 $ETC/uhttpd.key
+	mkdir -p $ETC/ex4
+	for f in cert.info smtp-pass; do [ -s $DATA/etc/ex4/$f ] && cp -p $DATA/etc/ex4/$f $ETC/ex4/$f; done
+	[ -f $ETC/ex4/smtp-pass ] && chmod 600 $ETC/ex4/smtp-pass
+	if [ -d $DATA/etc/ups-watch ]; then
+		mkdir -p $ETC/ups-watch; for f in $DATA/etc/ups-watch/*; do [ -f "$f" ] && cp -p "$f" $ETC/ups-watch/; done
+	fi
+	# 95_ex4_webui is a FIRST-boot script (it removes every web login): with the store bound it would un-claim the box
+	[ -e $S/webui-done ] && rm -f $ETC/uci-defaults/95_ex4_webui
+	return 0
+}
+
+copy_if_changed() {     # $1 = source, $2 = destination, $3 = mode
+	[ -f "$1" ] || return 0
+	cmp -s "$1" "$2" 2>/dev/null && return 0
+	cp "$1" "$2.new" && chmod "$3" "$2.new" && mv "$2.new" "$2" && say "saved $2"
+}
+
+save_items() {
+	mkdir -p $DATA/etc/dropbear $DATA/etc/ex4 $S
+	for k in ed25519 ecdsa rsa; do copy_if_changed $ETC/dropbear/dropbear_${k}_host_key $DATA/etc/dropbear/dropbear_${k}_host_key 600; done
+	copy_if_changed $ETC/uhttpd.crt $DATA/etc/uhttpd.crt 644
+	copy_if_changed $ETC/uhttpd.key $DATA/etc/uhttpd.key 600
+	copy_if_changed $ETC/ex4/cert.info $DATA/etc/ex4/cert.info 644
+	copy_if_changed $ETC/ex4/smtp-pass $DATA/etc/ex4/smtp-pass 600
+	if [ -d $ETC/ups-watch ]; then
+		mkdir -p $DATA/etc/ups-watch
+		for f in $ETC/ups-watch/*; do [ -f "$f" ] && copy_if_changed "$f" "$DATA/etc/ups-watch/${f##*/}" 600; done
+	fi
+	sync
+}
+
+cmd_boot() {
+	: > $ST; st_set mode ram
+	attach || { say "MODE ram: image defaults, nothing persists this boot"; return 0; }
+	st_set ubi yes
+	T=$(read_tries); st_set tries "$T"
+	mkdir -p $DATA
+	mount -t ubifs ubi$UBI:ex4data $DATA >> $LOG 2>&1 || { say "ex4data did not mount: MODE ram (image defaults)"; return 0; }
+	st_set data yes
+	if [ "$T" -ge $SAFE_AT ]; then
+		st_set mode safe; : > $TMPD/ex4-safe-config
+		say "MODE safe: attempt $T (the last boot never became reachable): the stored /etc/config is NOT used this boot (image defaults: DHCP, key-only ssh); nothing is written to the store. Fix the stored config in $DATA/etc/config, then reboot"
+		return 0
+	fi
+	if [ -e $S/seeded ]; then
+		if restore; then st_set mode persist; say "MODE persist: stored config bound onto $ETC/config (attempt $T)"
+		else st_set mode ram; say "MODE ram: restore failed (image defaults)"; fi
+	else
+		st_set mode first; say "MODE first: the store is empty: image defaults now, seeded at S97"
+	fi
+	return 0
+}
+
+cmd_seed() {
+	m=$(st_get mode)
+	[ "$m" = first ] || { say "seed: nothing to do (mode ${m:-unknown})"; return 0; }
+	mounted $DATA || { say "seed: $DATA is not mounted"; return 1; }
+	[ -e $S/seeded ] && { say "seed: REFUSED: the store is already seeded"; return 1; }
+	mkdir -p $DATA/etc/config $S
+	for f in $ETC/config/*; do [ -f "$f" ] && cp -p "$f" $DATA/etc/config/; done
+	for f in $ETC/config/*; do
+		[ -f "$f" ] || continue
+		cmp -s "$f" "$DATA/etc/config/${f##*/}" || { say "seed: $f did not copy: NOT seeded (image defaults stay; next boot tries again)"; return 1; }
+	done
+	save_items
+	[ -e $ETC/uci-defaults/95_ex4_webui ] || : > $S/webui-done
+	sync; : > $S/seeded; sync
+	mount -o bind $DATA/etc/config $ETC/config || { say "seed: stored, but the bind failed: changes this boot are not kept"; return 1; }
+	st_set mode persist; say "seed: the store holds this boot's config + keys + cert; MODE persist from now on"
+}
+
+cmd_save() {
+	[ "$(st_get mode)" = persist ] || return 0
+	mounted $DATA || return 0
+	save_items
+}
+
+cmd_stop() {
+	cmd_save
+	mounted $ETC/config && umount $ETC/config 2>/dev/null
+	mounted $DATA && { sync; umount $DATA 2>/dev/null || say "stop: umount $DATA failed"; }
+	mounted $DATA || ubidetach -d $UBI >> $LOG 2>&1
+	return 0
+}
+
+case "${1:-}" in
+boot) cmd_boot;;
+seed) cmd_seed;;
+save) cmd_save;;
+stop) cmd_stop;;
+status) cat $ST 2>/dev/null; tail -n 20 $LOG 2>/dev/null;;
+*) echo "usage: ex4-persist boot | seed | save | stop | status" >&2; exit 64;;
+esac
