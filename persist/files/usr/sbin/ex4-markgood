@@ -1,0 +1,73 @@
+#!/bin/sh
+# ex4-markgood (EX4 persistent system v1, FINALIZE-PLAN B2, Nov 26 2026): the "good boot" half of the tries counter.
+# stage2 (in mtd2, under WD's kernel) writes tries = N+1 into ex4boot before every jump, and refuses to jump at tries 3
+# (rescue: telnet, LAN). THIS writes tries = 0 once the box is REACHABLE: br-lan holds an IPv4 address AND sshd listens
+# on port 22, both seen on REACH_N checks in a row, REACH_S seconds apart. Then: mount ubi3:ex4boot rw, write tries=0
+# (a new file renamed over the old: UBIFS renames atomically), sync, read back, umount. The UBI stays attached (ex4data
+# is mounted on it for the whole run; ex4-persist stop detaches at shutdown).
+# The other half is ex4-notgood (S04): no /tmp/ex4-good within its window = reboot, so tries climbs and stage2 rescues.
+#   ex4-markgood run      (S98, in the background) wait for reachable, then mark
+#   ex4-markgood mark     mark now (by hand, after a fix)
+#   ex4-markgood status
+SYS=/sys; PROC=/proc; DEV=/dev; TMPD=/tmp; DATA=/ex4data
+UBI=3; MTDN=3; VID=2048; REACH_N=3; REACH_S=10; TRIES_MAX=3
+RW=$TMPD/ex4boot-rw; GOOD=$TMPD/ex4-good; LOG=$TMPD/ex4-markgood.log
+
+say() {
+	echo "ex4-markgood: $*"; echo "$(date '+%F %T') $*" >> $LOG
+	logger -t ex4-markgood "$*" 2>/dev/null
+	[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "markgood: $*" >/dev/null 2>&1
+	return 0
+}
+
+has_ipv4() { ip -4 addr show dev br-lan 2>/dev/null | grep -q ' inet '; }
+ssh_listens() {      # port 22 (0016) in state LISTEN (0A) in /proc/net/tcp or tcp6
+	for f in $PROC/net/tcp $PROC/net/tcp6; do
+		[ -r $f ] && awk '$4 == "0A" { split($2, a, ":"); if (toupper(a[2]) == "0016") f = 1 } END { exit f ? 0 : 1 }' $f && return 0
+	done
+	return 1
+}
+reachable() { has_ipv4 && ssh_listens; }
+
+attached() { [ -e $SYS/class/ubi/ubi$UBI/mtd_num ] && [ "$(cat $SYS/class/ubi/ubi$UBI/mtd_num)" = $MTDN ]; }
+
+mark() {
+	attached || ubiattach -m $MTDN -d $UBI -O $VID >> $LOG 2>&1 || { say "ubiattach failed: NOT marked good"; return 1; }
+	mkdir -p $RW
+	grep -q " $RW " $PROC/mounts || mount -t ubifs ubi$UBI:ex4boot $RW >> $LOG 2>&1 || { say "ex4boot did not mount rw: NOT marked good"; return 1; }
+	was=$(cat $RW/tries 2>/dev/null)
+	if [ ! -s $RW/kernel.bin ] || [ ! -s $RW/EXPECT ]; then umount $RW; say "ex4boot lacks kernel.bin / EXPECT: NOT marked good (left for a person)"; return 1; fi
+	echo 0 > $RW/tries.new && sync && mv $RW/tries.new $RW/tries && sync || { rm -f $RW/tries.new; umount $RW; say "writing tries failed: NOT marked good"; return 1; }
+	now=$(cat $RW/tries 2>/dev/null)
+	umount $RW || say "umount $RW failed (tries was written)"
+	[ "$now" = 0 ] || { say "tries reads '$now' after the write: NOT marked good"; return 1; }
+	: > $GOOD
+	say "marked good: tries ${was:-?} -> 0 ($(cut -d' ' -f1 $PROC/uptime) s after boot; mode $(sed -n 's/^mode=//p' $TMPD/ex4-persist.state 2>/dev/null | tail -n 1))"
+	if grep -q " $DATA " $PROC/mounts; then
+		mkdir -p $DATA/var && echo "$(date '+%F %T') good tries_was=${was:-?} uptime=$(cut -d' ' -f1 $PROC/uptime) kernel=$(uname -r) mode=$(sed -n 's/^mode=//p' $TMPD/ex4-persist.state 2>/dev/null | tail -n 1)" >> $DATA/var/boots.log
+		sync
+	fi
+	return 0
+}
+
+run() {
+	[ -e $GOOD ] && { say "already good"; return 0; }
+	n=0
+	while :; do
+		if reachable; then n=$((n + 1)); else n=0; fi
+		if [ $n -ge $REACH_N ]; then
+			for i in 1 2 3; do mark && break; sleep 20; done
+			[ -e $GOOD ] && { [ -x /usr/sbin/ex4-selftest ] && /usr/sbin/ex4-selftest >/dev/null 2>&1; return 0; }
+			say "could not mark good after 3 tries: ex4-notgood will reboot this box (tries climbs; stage2 rescues at $TRIES_MAX)"
+			return 1
+		fi
+		sleep $REACH_S
+	done
+}
+
+case "${1:-}" in
+run) run;;
+mark) mark;;
+status) [ -e $GOOD ] && echo good || echo "not good yet"; tail -n 10 $LOG 2>/dev/null;;
+*) echo "usage: ex4-markgood run | mark | status" >&2; exit 64;;
+esac
