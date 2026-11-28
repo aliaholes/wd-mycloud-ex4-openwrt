@@ -1,0 +1,18 @@
+# ups-watch.conf.example (EX4 persistent system v1): the UPS watcher is IN the image and OFF: /etc/init.d/ups-watch starts
+# nothing until /etc/ups-watch/ups-watch.conf exists (copy this file there; /etc/ups-watch persists in ex4data).
+# DRY: mode=dry logs "WOULD SHUT DOWN" and never powers off. Live = the owner's decision,
+# mode=live AND live_file present, both root-owned. Keys: the ups-watch script's header in the image. The password lives in
+# password_file (0600), never here. Server: the NUT server that owns your UPS.
+server=FILL-IN
+port=3493
+ups=ups
+username=FILL-IN
+password_file=/etc/ups-watch/secret
+poll_s=2
+grace_s=20
+timeout_s=2
+mode=dry
+live_file=/etc/ups-watch/LIVE
+log_file=/tmp/ups-watch.log
+stop=initd:ex4-svc
+umount=/mnt/md1
