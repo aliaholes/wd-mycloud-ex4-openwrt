@@ -1,8 +1,10 @@
 # Installing to flash: the plan, and how far it has got
 
-> **THE PERMANENT INSTALL IS NOT DONE.** On ONE unit (ours, Nov 26 2026) steps 2-4 have run: `mtd2` holds the stage-2
-> ramdisk and the box boots through real U-Boot into WD's system as before. The modern system in `mtd3` (steps 5-6) is not
-> built and not written on any unit.
+> **STATUS: install in progress Nov 27 2026, on ONE unit (ours).** Steps 2-4 ran Nov 26 (`mtd2` holds the v1 stage-2
+> ramdisk; the box boots through real U-Boot into WD's system as before). The modern system for `mtd3` is now BUILT
+> ([persist/](persist/README.md)) and proven from RAM against a simulated `mtd3` under both kernels ([c4/](c4/README.md));
+> the two flash writes that install it (D1: stage2 v2 into `mtd2`, D2: the UBI into `mtd3`) are being made on our unit now.
+> No other unit has any of this. What each proof covers and does not: [docs/LESSONS-2026-11.md](docs/LESSONS-2026-11.md).
 > This page is the plan for a permanent install and an honest account of which steps have run. Read it as a map
 > of the risks, not as instructions to follow. Everything else in this repository runs from RAM and goes away
 > with a power cycle; **the flash write described here does not.**
@@ -19,15 +21,16 @@ WD's flash layout (from the stock firmware's own boot log; the `mtd` numbers are
 |---|---|---|---|
 | mtd0 | u-boot | 1 MiB | **never** |
 | mtd1 | uImage (WD's kernel 3.2.40) | 5 MiB | **never** (the plan keeps WD's kernel) |
-| **mtd2** | **ramdisk** | **5 MiB** | **step 3: the one write.** WD's own ramdisk + `/ex4` + one line in `rc.sh` ([stage2/](stage2/README.md)) |
-| mtd3 | image (WD's system) | 205 MiB | only at step 6, after everything before it is proven: becomes UBI with an `ex4boot` volume and the modern system |
+| **mtd2** | **ramdisk** | **5 MiB** | **step 3 (v1), then D1 (v2, the belt).** WD's own ramdisk + `/ex4` + one line in `rc.sh` ([stage2/](stage2/README.md), [stage2/v2/](stage2/v2/README.md)) |
+| mtd3 | image (WD's system) | 205 MiB | step D2 only, after stage2 v2 is in `mtd2`: becomes UBI with an `ex4boot` volume (kernel set + `tries`) and an `ex4data` volume (settings), [persist/](persist/README.md), written by [box/ex4-mtd3.sh](box/ex4-mtd3.sh) |
 | mtd6 | reserve | 5 MiB | never |
 | mtd4 | rescue firmware (holds the unit's identity: WD's two MAC addresses) | 15 MiB | **never** |
 | mtd5 | config | 20 MiB | never |
 
 Once `mtd2` holds the stage-2 ramdisk, every boot still goes U-Boot -> WD's kernel -> our ramdisk, and the one
-added line runs `/ex4/stage2.sh`. While `mtd3` is still WD's image, the script returns at once and the box boots
-stock exactly as before. Only when `mtd3` is UBI (step 6) does it load the modern kernel.
+added line runs `/ex4/stage2.sh`. While `mtd3` is still WD's image, the script returns and the box boots
+stock exactly as before. Only when `mtd3` is UBI (D2) does it load the modern kernel. v2 returns to WD only when `mtd3`
+POSITIVELY is WD's image (the belt, below); anything else takes our branch, whose every failure is the rescue shell.
 
 The write itself uses the same two commands WD's own updater uses (`flash_eraseall` + `nandwrite`), through
 [box/ex4-install.sh](box/ex4-install.sh), which erases, writes, reads back, compares, and puts the backup back by
@@ -55,6 +58,27 @@ What has run, on our one unit: `plan` (it passed walls 1-5 with the current imag
 `write` once to its `ARMED=0` refusal; then on Nov 26 2026 `backup`, and an armed `write` from a copy (it wrote `mtd2`, read
 back equal). `restore` has never run anywhere.
 
+## box/ex4-mtd3.sh (phase D2)
+
+Runs on the stock firmware, as root, and ships with `ARMED=0` (`write`, `verify` and `restore` refuse). The only device it
+can write is the constant `/dev/mtd3`.
+
+```
+sh ex4-mtd3.sh plan          read-only: every wall, and what write would do   (DEFAULT)
+sh ex4-mtd3.sh backup DIR    read-only on flash: mtd3 twice (md5s must agree AND equal the pinned dump), keeps its first 0x6820000 bytes
+sh ex4-mtd3.sh write DIR     erase + nandwrite -p + read back; on a mismatch writes WD's image back and verifies it. Never reboots
+sh ex4-mtd3.sh verify        before any reboot: attach (-O 2048), mount both volumes, md5 every ex4boot file vs MANIFEST, tries 0
+sh ex4-mtd3.sh restore DIR   WD's image back and verified
+```
+
+Its walls: (1) the constant target; (2) the exact firmware, an EX4, WD's flash layout; (3) WD's kernel in `mtd1`; (4) **stage2
+v2 in `mtd2`**: pinned in a file `STAGE2-V2-IN-MTD2` beside the script, on the list `S2_UBI_PROVEN` (md5:length of a v2 whose
+UBI branch was proven), with its marker `STAGE2-V2-PROVEN-<first 8 of md5>` beside it; v1, the stock ramdisk and the two v2
+builds whose busybox rejects `-O` are refused by name; (5) the image: its md5 sidecar, `UBI#`, whole blocks, ending before
+the bad block; plus the backup and read-back walls. **Every pin in it is OUR unit's** (the mtd3 dump md5, the bad block
+1501, our proven v2 image): on your unit it refuses until you replace them with your own, from your own dumps and your own
+RAM proofs. Its off-box test is `tests/mtd3/sim-w4.py` (fake flash as regular files; it refuses any path under `/dev`).
+
 ## The steps, and where each one stands
 
 | Step | What | Status |
@@ -65,8 +89,11 @@ back equal). `restore` has never run anywhere.
 | 2 | Back up `mtd2` on the box (`ex4-install.sh backup`), copy it off, check it equals your step-0 dump | done on our unit (Nov 26 2026) |
 | 3 | **THE FLASH WRITE.** Set `ARMED=1` (a one-line edit), `ex4-install.sh write DIR`. Daylight, someone at the plug, ideally a UPS | **done on ONE unit (ours, Nov 26 2026)**: erase + write + read-back took 6 s; read-back, full-partition md5, ECC and the other partitions all checked by hand before any reboot |
 | 4 | Reboot and prove the hook through real U-Boot: WD must come up exactly as before | **PROVEN on our unit** (Nov 26 2026): U-Boot loaded the ramdisk from `mtd2`, `stage2.sh` logged `mtd3 is not UBI` once, WD came up with its RAID, data volume and daemons as before |
-| 5 | Build the persistent modern system for `mtd3` (UBI with the `ex4boot` volume: kernel, ATAGs, initrd, the boot counter, and the root) | **not built**. It needs an OpenWrt source build with an EX4 device entry |
-| 6 | Switch `mtd3` to UBI (a second flash write) | not run; see the risk below before it ever is |
+| 5 | Build stage2 v2 (the belt) and the persistent system for `mtd3` ([stage2/v2/](stage2/v2/README.md), [persist/](persist/README.md), `build/build-mtd3.py`) | **built** on our unit's build machine, Nov 26 2026 |
+| 5a | Prove them from RAM: v2's stock branch through `ex4boot`; v2's UBI branch, rescue and restore under WD's kernel against a simulated mtd3 (nandsim); the installed system under 6.12 against the same simulation ([c4/](c4/README.md)) | **PROVEN on our unit** (Nov 26-27 2026), no flash written. Not covered: the real NAND driver under 6.12 on the real mtd3, and both kernels sharing one real UBI |
+| D1 | **Flash write: `mtd2` <- stage2 v2** (`box/ex4-install.sh`, the step 3 flow; it wants a `STAGE2-PROVEN` file holding the image's md5, written only after your own RAM proof) | **install in progress Nov 27 2026** (our unit) |
+| D2 | **Flash write: `mtd3` <- the UBI** (`box/ex4-mtd3.sh backup DIR`, `write DIR`, then `verify` under stock BEFORE any reboot), then reboot into the modern system; it marks a good boot (tries 0) | **install in progress Nov 27 2026** (our unit) |
+| E | The array: copy off what you want, re-create it under the modern system (RAID5, superblock 1.2 + bitmap + bad-block log, ext4 64bit + metadata_csum), about 21 h of resync; then NFS | not run |
 
 ## The rescue path, worst case last
 
@@ -74,10 +101,12 @@ back equal). `restore` has never run anywhere.
 2. **After step 3, `mtd3` still stock:** `stage2.sh` returns at once and WD boots as before. If the hook itself
    misbehaves, `ex4-install.sh restore DIR` (armed) puts your backed-up `mtd2` back, with the same walls and the
    same read-back.
-3. **After step 6:** any failure, 3 boots without the new system marking a good boot, or a file `rescue` in the
-   `ex4boot` volume drops into **the stage-2 rescue shell under WD's kernel**: DHCP plus a root telnet on port 23,
-   **with no password** (only acceptable on a LAN you trust; this is an open question in the design), and the
-   busybox flash tools to write `mtd2` and `mtd3` back from your dumps. This shell has never run.
+3. **After D1 + D2:** any failure, 3 boots without the new system marking a good boot, or a file `rescue` in the
+   `ex4boot` volume drops into **the stage-2 rescue shell under WD's kernel**: DHCP (then a static fallback address you set
+   at build time) plus a root telnet on port 23, **with no password** (only while the box is already in rescue, and only
+   acceptable on a LAN you trust), and `/ex4/restore-stock.sh` to write WD's image back into `mtd3` from your dump over the
+   network. The rescue shell has run on our unit (forced, from RAM: lease, telnet, tools, back to stock); `restore-stock.sh`
+   has run armed only into a SIMULATED mtd3, never into the real one.
 4. **THE DARK BOX: the case none of the above can reach.** If the power goes during step 3's minute, or the new
    ramdisk reads back correctly but U-Boot still fails to boot it, the box will not answer on the network at all.
    Then the only unbrick we know of is **serial**: open the case, attach a 3.3 V USB-TTL adapter (115200 8N1), load
@@ -93,9 +122,11 @@ back equal). `restore` has never run anywhere.
 - **WD's boot can erase its own kernel.** WD's stock ramdisk runs a check (`chk_image`) on every boot. Read from its
   code: when `mtd3` does not hold a valid WD image (size, checksum record or checksum wrong), it runs
   `flash_eraseall /dev/mtd1` and reboots, unless a marker file exists in the config volume. Steps 1-4 are not
-  exposed (`mtd3` stays WD's). **Step 6 is:** if `stage2.sh` ever returned or failed to run while `mtd3` is UBI,
-  WD's boot would go on into that check and erase `mtd1`. `stage2.sh` never falls through on that path by design,
-  but a second guard is needed before step 6 and is not written yet.
+  exposed (`mtd3` stays WD's). **D2 is:** if the hook ever returned or failed to run while `mtd3` is not WD's image,
+  WD's boot would go on into that check and erase `mtd1`. That is why D1 comes first: stage2 v2 returns to WD only on a
+  positive md5 match of WD's image and never otherwise, and `box/ex4-mtd3.sh` refuses to write unless v2 is in `mtd2`.
+  A power cut during the `mtd3` erase or write then lands in rescue, not in `chk_image`. The belt's md5s are OUR unit's:
+  check yours ([stage2/v2/README.md](stage2/v2/README.md)) or every boot goes to rescue.
 - **The stock shell has no `$(( ))` arithmetic** (its busybox was built without it). `stage2.sh` runs under it at
   boot; any edit must pass `sh -n` with the stock firmware's own shell, not only on your computer.
 - **One unit, one firmware.** Everything here was seen on one EX4 with WD firmware 2.12.127. The script refuses
