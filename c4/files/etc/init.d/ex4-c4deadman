@@ -1,0 +1,21 @@
+#!/bin/sh /etc/rc.common
+# ex4-c4deadman (FINALIZE C4 TEST overlay ONLY; my recorded lean, DESIGN-C4 gate nit 2, Nov 26 2026): persist-v1 has NO way back
+# to stock (after D2 a reboot comes back to the installed system), so a C4 boot that marks good and then loses the LAN would sit
+# there until a person pulls the plug. In C4 a reboot IS the way home (every C4 boot came from a bundle go out of stock; the flash
+# is untouched), so: C4_MIN minutes after /tmp/ex4-good appears (ex4-markgood), reboot through procd (K85 ex4-persist stop first),
+# `reboot -f` if that hangs C4_HANG s. Before good, ex4-notgood (S04) owns the box (10 min with carrier). NOT a persist-v1 file:
+# the C4 builder (c4/mkc4overlay.py) adds it to the TEST overlay only; persist-v1's own files stay byte-identical.
+START=03
+C4_MIN=45
+C4_HANG=180
+boot() {
+	[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "rc.d S03: C4 deadman armed (C4 TEST only): reboot $C4_MIN min after /tmp/ex4-good (a C4 boot came from a bundle go: a reboot = stock)"
+	( while [ ! -e /tmp/ex4-good ]; do sleep 10; done
+	  logger -t ex4-c4deadman "marked good: rebooting in $C4_MIN min (C4 TEST only)"
+	  [ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "c4 deadman: marked good, reboot to stock in $C4_MIN min"
+	  sleep $((C4_MIN * 60))
+	  logger -t ex4-c4deadman "$C4_MIN min after mark-good: rebooting to stock (C4 TEST only)"
+	  [ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "c4 deadman: $C4_MIN min after mark-good: rebooting to stock now (C4 TEST only)"
+	  sleep 4; reboot; sleep $C4_HANG; reboot -f ) </dev/null >/dev/null 2>&1 &
+}
+start() { return 0; }
