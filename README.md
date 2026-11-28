@@ -20,9 +20,10 @@
 >
 > **It runs from RAM only, and it is still at your own risk.** The trial never writes the NAND flash: no step of
 > it and no program it runs contains a flash write, and the device tree the new kernel gets marks every flash
-> partition read-only. (The one flash-writing file in this repository is `box/ex4-install.sh`, the planned
-> installer for a later step. It ships disarmed, `ARMED=0`, has written flash on ONE unit (ours, the `mtd2` step, from an armed copy), and the trial
-> never calls it: see [INSTALL.md](INSTALL.md).) A power cycle brings the stock WD system back. But a kernel module is loaded
+> partition read-only. (Three files in this repository can write flash, all for the install, none called by the trial, all shipped
+> disarmed with `ARMED=0`: `box/ex4-install.sh` (`mtd2`), `box/ex4-mtd3.sh` (`mtd3`) and `stage2/v2/restore-stock.sh`
+> (WD's image back into `mtd3`, from the rescue shell). An armed copy of `ex4-install.sh` wrote `mtd2` on ONE unit,
+> ours (Nov 26 2026); the rest of the install is in progress there: see [INSTALL.md](INSTALL.md).) A power cycle brings the stock WD system back. But a kernel module is loaded
 > into WD's kernel, your data volumes are remounted read-only and the machine is taken over while it runs. An
 > unclean return can make the RAID resync or the stock system check its file system for minutes. The trial also
 > **writes one 2 MiB log into an unused disk partition** (see [SAFETY.md](SAFETY.md), "The one disk write").
@@ -56,11 +57,16 @@ the old kernel down and jumps. About a minute later the box answers ssh again as
 RAM. After 20 minutes it reboots itself back to WD's firmware unless you tell it to stay. Pull the plug at any
 time and you are back on stock too.
 
-**It is a trial boot, not an installation.** Nothing persists. That is the point of this first release: it lets
-EX4 owners (and anyone porting OpenWrt or Debian to this board) run and debug a modern kernel on the real
-hardware with a way back that needs no tools. **A permanent install is NOT done.** On one unit (ours) the first flash step is done and boots through U-Boot ([INSTALL.md](INSTALL.md)); the modern system in flash is not built.
-[INSTALL.md](INSTALL.md) is the plan and where it stands; its first piece, the stage-2 ramdisk
-([stage2/](stage2/README.md)), has been booted from RAM on the test unit, then written to its `mtd2` and booted through real U-Boot (Nov 26 2026).
+**It is a trial boot, not an installation.** Nothing persists. That is the point of the trial: it lets EX4 owners
+(and anyone porting OpenWrt or Debian to this board) run and debug a modern kernel on the real hardware with a way back
+that needs no tools.
+
+**The permanent install: in progress Nov 27 2026, on ONE unit (ours).** Its pieces are in this tree and each was proven
+from RAM on that unit first: the stage-2 ramdisk with the belt ([stage2/v2/](stage2/v2/README.md)), the installed system for
+`mtd3` ([persist/](persist/README.md)), the trial that proved it under 6.12 against a simulated `mtd3` ([c4/](c4/README.md)),
+and the `mtd3` writer ([box/ex4-mtd3.sh](box/ex4-mtd3.sh)). [INSTALL.md](INSTALL.md) is the path and where it stands;
+[docs/LESSONS-2026-11.md](docs/LESSONS-2026-11.md) is what the work taught, including what the proofs do NOT cover. Every pin
+in those tools is our unit's bytes: they refuse on yours until you replace the pins with your own.
 
 ## What works (seen on the test unit)
 
@@ -125,7 +131,7 @@ the services themselves come to about 18 MiB (an estimate from qemu; details in 
 
 ## What does not work
 
-- **It is not installed.** RAM only; every reboot is WD's firmware again.
+- **The trial is not an install.** RAM only; every reboot is WD's firmware again. (The install path is separate: INSTALL.md.)
 - **The PHY temperature sensors.** The link-flap fix hands both Ethernet PHYs to the kernel's generic PHY driver
   (the Marvell driver switched the 88E151x to its fibre register page on every poll, and the Kirkwood MAC read
   "no link" there: 2329 carrier changes in 20 minutes in run 7). The generic driver does not expose the PHYs'
@@ -288,12 +294,14 @@ The full table, the frames we captured but never send, the event codes, and how 
 | `loader/` | `ex4boot`: the kernel module and its relocation stub, plus two emulator tests of the stub |
 | `dts/` | the device tree for the EX4 (`wd,mycloud-ex4`), written against Linux 6.12's kirkwood includes |
 | `userland/` | `ex4fan` (fan, clock, panel), `ex4log` (the black-box disk log), `ex4peek` (read-only: finds the trial kernel's log and our RAM markers in memory), `ex4phy` (read-only: asks the Ethernet PHYs for their id and register page) |
-| `box/` | `ex4-trial.sh`, the one script the trial runs on the NAS; `ex4-install.sh`, the flash installer (ships `ARMED=0`; on one unit an armed copy wrote `mtd2`: [INSTALL.md](INSTALL.md)) |
-| `stage2/` | builds the stage-2 ramdisk for a future install from your own stock ramdisk; proven from RAM, then flashed and booted through real U-Boot, on one unit ([stage2/README.md](stage2/README.md)) |
-| `build/` | `fetch.sh`, `build.sh`, and the Python tools they use |
+| `box/` | `ex4-trial.sh`, the one script the trial runs on the NAS; `ex4-install.sh`, the `mtd2` writer, and `ex4-mtd3.sh`, the `mtd3` writer (both ship `ARMED=0`: [INSTALL.md](INSTALL.md)) |
+| `stage2/` | builds the stage-2 ramdisk from your own stock ramdisk: v1 ([stage2/README.md](stage2/README.md)) and v2 with the belt, the restore tool and the rescue shell ([stage2/v2/README.md](stage2/v2/README.md)) |
+| `persist/` | the installed system for `mtd3` (persist-v1): tries counter, mark-good, not-good deadman, safe mode, the settings store, service mode ([persist/README.md](persist/README.md)) |
+| `c4/` | the C4 trial kit: the installed system booted from RAM under 6.12 against a simulated `mtd3`; `ubifs-read.py` reads a used UBI image ([c4/README.md](c4/README.md)) |
+| `build/` | `fetch.sh`, `build.sh`, the Python tools they use, and `build-mtd3.py` (the `mtd3` UBI image + its offline checker) |
 | `host/` | `ex4-watch.sh`, an optional LAN-side witness |
 | `tests/` | everything that can be tested without the NAS: several hundred checks, many of them in emulators |
-| `docs/` | the protocol, the loader, the hardware map, the run history |
+| `docs/` | the protocol, the loader, the hardware map, the run history, and [LESSONS-2026-11.md](docs/LESSONS-2026-11.md) (the install work) |
 
 ## Helping
 
