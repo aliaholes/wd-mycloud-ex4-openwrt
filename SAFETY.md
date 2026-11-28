@@ -16,10 +16,11 @@ Read the warning at the top of [README.md](README.md) first. This page is the de
 
 The stock system is never modified by the trial: nothing the trial runs writes the NAND, and the device tree
 given to the new kernel marks all seven flash partitions `read-only` (the build checks the compiled tree for
-that, and so does `tests/dtb_check.py`). The one file in this repository that can write flash is
-`box/ex4-install.sh`, the planned installer for a later step: it ships with `ARMED=0` (its `write` and `restore`
-refuse before any flash command), it has written flash on ONE unit (ours, Nov 26 2026, the `mtd2` step), and the trial
-never calls it. The full flash install is not done: [INSTALL.md](INSTALL.md) says why, and how a box can be lost to it.
+that, and so does `tests/dtb_check.py`). Three files in this repository can write flash, all for the install
+and none called by the trial: `box/ex4-install.sh` (`mtd2`), `box/ex4-mtd3.sh` (`mtd3`) and `stage2/v2/restore-stock.sh`
+(WD's image back into `mtd3`, from the rescue shell). Each ships with `ARMED=0` (its writing modes refuse before any flash
+command). An armed copy of `ex4-install.sh` wrote `mtd2` on ONE unit, ours (Nov 26 2026); the rest of the install is in
+progress there (Nov 27 2026). [INSTALL.md](INSTALL.md) says how a box can be lost to it.
 
 ## The one disk write
 
