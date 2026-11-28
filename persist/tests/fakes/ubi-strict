@@ -1,0 +1,54 @@
+#!/bin/bash
+# ubi-strict (C4 prep, Nov 26 2026): a STRICT fake of ubiattach / ubidetach for the persist-v1 sim. THE LAW (C2.md, after
+# C2 failed at A6): a fake enforces the REAL applet's usage, copied from its source, or the proof runs against the real binary.
+#   ubi-strict MODEL APPLET ARGS...      exit 0 = the real tool would PARSE these arguments; exit 1 = it would refuse them
+#   MODEL mtdutils = mtd-utils 2.3.0 (ubi-utils/ubiattach.c 1228a8a4, ubidetach.c ad4510d5): the tools INSIDE the 6.12 image
+#                    (/usr/sbin/ubiattach 78ffb0ad, /usr/sbin/ubidetach 2c6d274f; the image's busybox has no ubi applet)
+#         ubiattach  getopt_long "p:m:d:O:b:frhV" + --devn --dev-path --mtdn --vid-hdr-offset --max-beb-per1024 --disable-fastmap
+#                    --reserve-pool --help --version; numbers via simple_strtoul (strtoul base 0, whole string); -O must be > 0;
+#                    0 operands = DEFAULT_CTRL_DEV "/dev/ubi_ctrl", 1 operand = the node, 2+ = "more then one UBI control device";
+#                    -m or -p required ("MTD device to attach was not specified")
+#         ubidetach  getopt_long "p:m:d:hV" + --devn --dev-path --mtdn --help --version; 0/1 operand as above; exactly one of
+#                    -d / -m / -p ("neither MTD nor UBI devices were specified" / "specify either MTD or UBI device")
+#   MODEL bb136    = busybox 1.36.1 UPSTREAM ubi_tools.c (the getopt that refused -O on the box at A6, fakebb-r4.sh's r3 mode):
+#                    "m:+d:+n:+N:s:a:+t:" (no O), and at least one operand = UBI_CTRL_DEV (the strict fake: exactly one)
+# Refusals are logged as "STRICT-REFUSED: <applet> <args>: <why>" to $CASE/calls.log when CASE is set, the reason to stderr.
+set -u
+MODEL=$1; A=$2; shift 2; ALL="$*"
+refuse() { [ -n "${CASE:-}" ] && printf 'STRICT-REFUSED[%s]: %s %s: %s\n' "$MODEL" "$A" "$ALL" "$1" >> "$CASE/calls.log"; echo "$A: $1" >&2; exit 1; }
+num() { [[ "$1" =~ ^(0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*)$ ]]; }      # simple_strtoul: strtoul(base 0) over the whole string
+case "$MODEL:$A" in
+mtdutils:ubiattach) S='p:m:d:O:b:frhV'; L='devn:,dev-path:,mtdn:,vid-hdr-offset:,max-beb-per1024:,disable-fastmap,reserve-pool,help,version';;
+mtdutils:ubidetach) S='p:m:d:hV'; L='devn:,dev-path:,mtdn:,help,version';;
+bb136:ubiattach|bb136:ubidetach) S='m:d:n:N:s:a:t:'; L=;;
+*) refuse "the strict fake has no model $MODEL for $A";;
+esac
+P=$(getopt -q -o "$S" ${L:+-l "$L"} -- "$@") || refuse "getopt refused the arguments (invalid or missing option argument)"
+eval set -- "$P"
+m=; d=; p=; O=
+while :; do
+	case "$1" in
+	-m|--mtdn) m=$2; num "$2" || refuse "bad MTD device number: \"$2\""; shift 2;;
+	-d|--devn) d=$2; num "$2" || refuse "bad UBI device number: \"$2\""; shift 2;;
+	-p|--dev-path) p=$2; shift 2;;
+	-O|--vid-hdr-offset) O=$2; { num "$2" && [ "$(( $2 ))" -gt 0 ]; } || refuse "bad VID header offset: \"$2\""; shift 2;;
+	-b|--max-beb-per1024) { num "$2" && [ "$(( $2 ))" -le 768 ]; } || refuse "bad maximum of expected bad blocks (0-768): \"$2\""; shift 2;;
+	-n|-N|-s|-a|-t) [ "$MODEL" = bb136 ] || refuse "unknown option $1"; [ "$MODEL" = bb136 ] && case "$1" in -n|-a) num "$2" || refuse "invalid number '$2'";; esac; shift 2;;
+	-f|--disable-fastmap|-r|--reserve-pool|-h|--help|-V|--version) shift;;
+	--) shift; break;;
+	*) refuse "unexpected $1";;
+	esac
+done
+if [ "$MODEL" = bb136 ]; then
+	[ $# -ge 1 ] || refuse "no UBI_CTRL_DEV operand (getopt32 \"-1\")"; [ $# = 1 ] || refuse "$# operands (the strict fake wants exactly one)"
+	[ "$A" = ubiattach ] && [ -z "$m" ] && refuse "MTD device not specified"; [ "$A" = ubidetach ] && [ -z "$d" ] && refuse "UBI device not specified"
+	exit 0
+fi
+[ $# -le 1 ] || refuse "more then one UBI control device specified (use -h for help)"
+if [ "$A" = ubiattach ]; then [ -n "$m$p" ] || refuse "MTD device to attach was not specified (use -h for help)"
+else
+	[ -n "$m$d$p" ] || refuse "neither MTD nor UBI devices were specified (use -h for help)"
+	if [ -n "$d" ]; then [ -z "$m$p" ] || refuse "specify either MTD or UBI device (use -h for help)"
+	elif [ -n "$m" ] && [ -n "$p" ]; then refuse "specify either MTD number or device node (use -h for help)"; fi
+fi
+exit 0
