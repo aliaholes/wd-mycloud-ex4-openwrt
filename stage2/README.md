@@ -1,5 +1,9 @@
 # stage2/: the second-stage loader for a future flash install
 
+> **v1 is superseded for an install by [v2/](v2/README.md)** (the belt: v1 hands the boot back to WD whenever `mtd3` is not
+> UBI, which a half-written `mtd3` would turn into WD erasing its own kernel). This page stays the reference for the method
+> both share (building from your own stock ramdisk, `e2walk.py`) and for v1's Nov 26 history.
+
 This folder builds the **stage-2 ramdisk**: WD's own stock ramdisk (the one in flash partition `mtd2`) with one
 folder (`/ex4`) and **one line** added. It is the piece a permanent install would put into `mtd2`. The flash
 install itself is **not done** (on one unit the `mtd2` step is done and boots): see [../INSTALL.md](../INSTALL.md) before you go
@@ -12,7 +16,7 @@ further than building.
 | Building the image off the box | Works. Done on our build machine Nov 26 2026, and again from this folder's own copy of `mkstage2.sh` |
 | **Booting it from RAM** (WD's own kernel + this ramdisk, handed over by `ex4boot`, no flash write) | **PROVEN** on ONE unit, Nov 26 2026, for ONE image (md5 `d2c6d5e629e105feab45725ffa3611bf`; see below) |
 | The branch that ran | "mtd3 is not UBI: continue the stock boot". The box came back as stock by itself in about 2 minutes, RAID clean, WD's daemons all up |
-| The UBI branch (boot a modern kernel from flash) and the rescue shell | **Never run.** No unit has a UBI `mtd3` |
+| The UBI branch (boot a modern kernel from flash) and the rescue shell | v1's: never run. **v2's: proven from RAM against a simulated mtd3, and the rescue shell forced at boot** ([v2/](v2/README.md)). v1's UBI branch would have failed the same way v2's first builds did on the box: same call form, and upstream busybox's `ubiattach` rejects `-O` |
 | Written to flash (`mtd2`) | **Once, on ONE unit (ours, Nov 26 2026).** `../box/ex4-install.sh` still ships with `ARMED=0`: the write ran from an armed COPY |
 | Read by U-Boot from flash | **Once, on ONE unit** (Nov 26 2026): our image d2c6d5e6 written to `mtd2`, U-Boot loaded it, `stage2.sh` continued the stock boot, WD came up as before |
 
@@ -47,7 +51,7 @@ hardware" at the top of `stage2.sh` was true when written; this table is the sta
 What `stage2.sh` does at boot, under WD's kernel: if `mtd3` does not start with `UBI#` (true for every stock unit),
 it logs one line and returns, and WD boots as always. Only on a UBI `mtd3` would it load a modern kernel from a
 volume called `ex4boot` (with the 21 s watchdog armed), or fall into a rescue shell (DHCP, telnet on port 23, no
-password) after 3 failed tries. Those paths have never run.
+password) after 3 failed tries. Those paths never ran in v1 (v2: see [v2/](v2/README.md)).
 
 ## Building it from YOUR OWN stock ramdisk
 
@@ -97,7 +101,7 @@ share the image you build: it contains WD's ramdisk.**
   that are not in this repository yet. Until they are, there is no published way to do the one step that
   `../box/ex4-install.sh` requires before it will write (its wall 6: the image's md5 in a file `STAGE2-PROVEN`).
   Do not write that file by hand.
-- **Install anything.** Read [../INSTALL.md](../INSTALL.md): the flash write has been done on ONE unit only, without serial, and the full install is not done.
+- **Install anything.** Read [../INSTALL.md](../INSTALL.md): the flash writes have been done on ONE unit only, without serial, and that install is in progress (Nov 27 2026).
 
 ## Files
 
