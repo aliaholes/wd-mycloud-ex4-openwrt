@@ -1,0 +1,6 @@
+#!/bin/sh /etc/rc.common
+# ex4-markgood (EX4 persistent system v1): S98, in the background: once reachable (br-lan IPv4 + sshd on 22), write
+# tries=0 into ex4boot. /usr/sbin/ex4-markgood.
+START=98
+boot() { ( /usr/sbin/ex4-markgood run ) </dev/null >/dev/null 2>&1 & }
+start() { return 0; }
