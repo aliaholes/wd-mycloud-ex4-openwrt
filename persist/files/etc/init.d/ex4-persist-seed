@@ -1,0 +1,6 @@
+#!/bin/sh /etc/rc.common
+# ex4-persist-seed (EX4 persistent system v1): S97, after dropbear (host keys made) and the cert (95_ex4_webui):
+# on the FIRST boot with an empty ex4data, copy this boot's config + keys + cert into it. Any later boot: nothing.
+START=97
+boot() { /usr/sbin/ex4-persist seed; }
+start() { return 0; }
