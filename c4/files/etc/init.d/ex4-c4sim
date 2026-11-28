@@ -1,0 +1,6 @@
+#!/bin/sh /etc/rc.common
+# ex4-c4sim (FINALIZE C4 TEST overlay ONLY, never in persist-v1 production): S03, before ex4-notgood (S04) and ex4-persist (S05):
+# the RO wall, then the nandsim that stands in for mtd3, loaded with the C4 sim image. /lib/ex4-c4/c4sim says how.
+START=03
+boot() { /lib/ex4-c4/c4sim boot; }
+start() { return 0; }
