@@ -1,0 +1,25 @@
+#!/bin/sh /etc/rc.common
+# ex4-notgood (EX4 persistent system v1, FINALIZE-PLAN B2): the deadman for "up but unreachable". Armed at S04, before
+# anything this image adds can block the init scripts. If /tmp/ex4-good (ex4-markgood: reachable + tries written 0) does
+# not appear within NOTGOOD_MIN minutes, it reboots: stage2 then counts attempt N+1, the boot after attempt 2 runs
+# ex4-persist in SAFE mode (image defaults), and stage2 sends attempt 4 to rescue (telnet, LAN). The clock counts only
+# while a LAN port has carrier: with no cable or switch a reboot cannot help, and rescue needs the LAN too.
+# The trial's 20-minute self-return and its S03 deadman-to-stock are NOT in this image: after D2 a reboot does not reach
+# WD's system, it comes back here. A hung kernel is the hardware watchdog's job (ex4boot arms it, procd feeds it).
+# The reboot goes through procd (K01ex4-svc stops md1 cleanly first); `reboot -f` only if that hangs 180 s.
+START=04
+NOTGOOD_MIN=10
+boot() {
+	[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "rc.d S04: not-good deadman armed: reboot after $NOTGOOD_MIN min with carrier and no /tmp/ex4-good"
+	( n=0
+	  while [ ! -e /tmp/ex4-good ]; do
+		sleep 10
+		c=0; for i in eth0 eth1; do [ "$(cat /sys/class/net/$i/carrier 2>/dev/null)" = 1 ] && c=1; done
+		[ $c = 1 ] && n=$((n + 10))
+		if [ $n -ge $((NOTGOOD_MIN * 60)) ] && [ ! -e /tmp/ex4-good ]; then
+			logger -t ex4-notgood "not good after $NOTGOOD_MIN min with carrier: rebooting (tries climbs; stage2 rescues at 3)"
+			[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "not-good deadman: $NOTGOOD_MIN min with carrier, no /tmp/ex4-good: rebooting now"
+			sleep 4; reboot; sleep 180; reboot -f
+		fi
+	  done ) </dev/null >/dev/null 2>&1 &
+}
