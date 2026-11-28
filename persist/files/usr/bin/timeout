@@ -1,0 +1,17 @@
+#!/bin/sh
+# timeout (EX4 persistent system v1): this image's busybox has NO timeout applet (k-ud .config:
+# "# CONFIG_BUSYBOX_CONFIG_TIMEOUT is not set"), and the UPS watcher (/usr/libexec/ups-watch/ups_watch.sh) calls
+# `timeout SECS CMD...`. A POSIX-sh stand-in, nothing installed: runs CMD, sends TERM after SECS (then KILL after 2 s),
+# exit status = CMD's, or 124 when it timed out (coreutils / busybox convention). Whole seconds only.
+case "${1:-}" in ''|*[!0-9]*) echo "timeout: usage: timeout SECS CMD [ARG]..." >&2; exit 125;; esac
+[ $# -ge 2 ] || { echo "timeout: usage: timeout SECS CMD [ARG]..." >&2; exit 125; }
+s=$1; shift
+f=/tmp/timeout.$$.fired
+"$@" &
+c=$!
+( sleep "$s"; kill -0 $c 2>/dev/null && { : > $f; kill -TERM $c 2>/dev/null; sleep 2; kill -KILL $c 2>/dev/null; } ) </dev/null >/dev/null 2>&1 &
+w=$!
+wait $c; r=$?
+kill $w 2>/dev/null
+if [ -e $f ]; then rm -f $f; exit 124; fi
+exit $r
