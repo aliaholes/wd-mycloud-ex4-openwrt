@@ -1,0 +1,24 @@
+#!/bin/sh /etc/rc.common
+# ex4-c4cap (FINALIZE C4 TEST overlay ONLY; AMEND 1, Nov 27 2026, both C4 reviews + the builder asked): THE ABSOLUTE BOOT CAP. The
+# C4-only deadman (ex4-c4deadman) arms only at mark-good, and ex4-notgood counts only while a port has carrier, so a C4 boot that never
+# gets a link and never marks good would sit until a power cycle (the watchdog covers only hangs). This cap closes that: C4_CAP_MIN
+# minutes after BOOT (counted from /proc/uptime, so S03's own start time is included), whatever happened, reboot through procd (K85
+# ex4-persist stop first), `reboot -f` if that hangs C4_HANG s. In C4 a reboot IS the way home (every C4 boot came from a bundle go out
+# of stock; the flash is untouched). Whichever comes first wins: the deadman (mark-good + 45 min), ex4-notgood (10 min with carrier, no
+# good), or this cap (boot + 90 min). NOT a persist-v1 file: the C4 builder (c4/mkc4overlay.py) adds it to the TEST overlay
+# only; persist-v1's own files stay byte-identical, and the production wall (sim-deadman P2/P3) proves no C4 file or string is in them.
+START=03
+C4_CAP_MIN=90
+C4_HANG=180
+UPTIME=/proc/uptime
+boot() {
+	up=; read -r up x 2>/dev/null < $UPTIME; up=${up%%.*}; case "$up" in ''|*[!0-9]*) up=0;; esac
+	left=$((C4_CAP_MIN * 60 - up)); [ "$left" -gt 0 ] || left=1
+	[ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "rc.d S03: C4 boot cap armed (C4 TEST only): reboot to stock $C4_CAP_MIN min after boot whatever happens (uptime $up s, fires in $left s; the deadman at mark-good + 45 min may come first)"
+	( sleep $left
+	  g=no; [ -e /tmp/ex4-good ] && g=yes
+	  logger -t ex4-c4cap "$C4_CAP_MIN min after boot (marked good: $g): rebooting to stock (C4 TEST only)"
+	  [ -x /usr/sbin/ex4log ] && /usr/sbin/ex4log note "c4 boot cap: $C4_CAP_MIN min after boot (marked good: $g): rebooting to stock now (C4 TEST only)"
+	  sleep 4; reboot; sleep $C4_HANG; reboot -f ) </dev/null >/dev/null 2>&1 &
+}
+start() { return 0; }
